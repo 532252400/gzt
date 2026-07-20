@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>工作台功能</title>
+<style>
+body{font-family:"Microsoft YaHei",sans-serif;padding:20px;max-width:700px;margin:0 auto;background:#f7f8fa}
+.card{background:#fff;border-radius:10px;padding:18px;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+h3{color:#3182ce;margin:0 0 8px;font-size:16px}
+p{color:#666;font-size:13px;margin:4px 0 12px}
+input[type=file]{display:none}
+.file-pick{display:inline-block;padding:6px 14px;background:#edf2f7;border:1px dashed #a0aec0;border-radius:5px;cursor:pointer;font-size:13px;margin-right:8px}
+.file-pick:hover{background:#e2e8f0}
+.btn{padding:8px 18px;background:#3182ce;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:13px}
+.btn:disabled{background:#a0aec0;cursor:not-allowed}
+.result{margin-top:10px;padding:10px;border-radius:5px;font-size:12px;white-space:pre-wrap;display:none}
+.result.show{display:block}
+.result.ok{background:#f0fff4;border-left:3px solid #38a169}
+.result.err{background:#fff5f5;border-left:3px solid #e53e3e}
+.result.wait{background:#fffbeb;border-left:3px solid #d69e2e}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid #e2e8f0;border-top-color:#3182ce;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+h1{font-size:20px;margin:0 0 20px}
+</style>
+</head>
+<body>
+<h1>工作台功能</h1>
+
+<div class="card">
+<h3>100x100 标签</h3>
+<p>上传Excel生成100x100标签</p>
+<input type="file" id="fx1" accept=".xlsx,.xls" onchange="fsel('fx1','fn1','bn1')">
+<span class="file-pick" onclick="document.getElementById('fx1').click()" id="fn1">选择文件</span>
+<button class="btn" id="bn1" onclick="run('lbl100','fx1','bn1','rs1')" disabled>生成标签</button>
+<div class="result" id="rs1"></div>
+</div>
+
+<div class="card">
+<h3>100x30 提货标签</h3>
+<p>上传Excel生成100x30提货标签</p>
+<input type="file" id="fx2" accept=".xlsx,.xls" onchange="fsel('fx2','fn2','bn2')">
+<span class="file-pick" onclick="document.getElementById('fx2').click()" id="fn2">选择文件</span>
+<button class="btn" id="bn2" onclick="run('lbl30','fx2','bn2','rs2')" disabled>生成标签</button>
+<div class="result" id="rs2"></div>
+</div>
+
+<div class="card">
+<h3>美国发货汇总</h3>
+<p>上传美国发货单Excel生成汇总</p>
+<input type="file" id="fx3" accept=".xlsx,.xls" onchange="fsel('fx3','fn3','bn3')">
+<span class="file-pick" onclick="document.getElementById('fx3').click()" id="fn3">选择文件</span>
+<button class="btn" id="bn3" onclick="run('us','fx3','bn3','rs3')" disabled>生成汇总</button>
+<div class="result" id="rs3"></div>
+</div>
+
+<div class="card">
+<h3>加拿大发货汇总</h3>
+<p>上传加拿大发货单Excel生成汇总</p>
+<input type="file" id="fx4" accept=".xlsx,.xls" onchange="fsel('fx4','fn4','bn4')">
+<span class="file-pick" onclick="document.getElementById('fx4').click()" id="fn4">选择文件</span>
+<button class="btn" id="bn4" onclick="run('ca','fx4','bn4','rs4')" disabled>生成汇总</button>
+<div class="result" id="rs4"></div>
+</div>
+
+<div class="card">
+<h3>收货单据核对</h3>
+<p>上传收货单据Excel进行核对</p>
+<input type="file" id="fx5" accept=".xlsx,.xls" onchange="fsel('fx5','fn5','bn5')">
+<span class="file-pick" onclick="document.getElementById('fx5').click()" id="fn5">选择文件</span>
+<button class="btn" id="bn5" onclick="run('rc','fx5','bn5','rs5')" disabled>开始核对</button>
+<div class="result" id="rs5"></div>
+</div>
+
+<script>
+function fsel(fid,nid,bid){
+    var f=document.getElementById(fid);
+    if(f.files[0]){
+        document.getElementById(nid).textContent=f.files[0].name;
+        document.getElementById(bid).disabled=false;
+    }
+}
+function show(id,cls,msg){
+    var r=document.getElementById(id);
+    r.className='result show '+cls;
+    r.textContent=msg;
+}
+async function run(action,fid,bid,rid){
+    var f=document.getElementById(fid),b=document.getElementById(bid);
+    if(!f.files[0])return;
+    b.disabled=true;
+    show(rid,'wait','处理中...');
+    try{
+        var fd=new FormData();
+        fd.append('file',f.files[0]);
+        fd.append('action',action);
+        var resp=await fetch('/run',{method:'POST',body:fd});
+        var d=await resp.json();
+        if(d.status==='ok'){show(rid,'ok',d.message)}
+        else{show(rid,'err','错误: '+(d.message||''))}
+    }catch(e){show(rid,'err','请求失败: '+e.message)}
+    b.disabled=false;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+﻿_scan_data.db
+__pycache__/
+*.pyc
+工厂工作台_backup_*.py
+工厂工作台_old.py
