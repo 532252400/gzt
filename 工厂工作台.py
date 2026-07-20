@@ -238,7 +238,7 @@ def get_region_stats(bid, region):
 # ====== 端口 ======
 # 使服务器能重用TIME_WAIT状态的端口
 # allow_reuse_address removed - causes port stealing on Windows
-VERSION = 'v20260718'
+VERSION = 'v20260720'
 PORT = 8932
 for _ in range(20):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -471,7 +471,7 @@ fetch('/scan_history').then(r=>r.json()).then(bs=>{
 });
 </script></body></html>'''
 
-WORKSHOP_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>车间加工(手机端)</title><style>
+WORKSHOP_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>✅车间加工(手机端)</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;color:#333;padding:0;max-width:500px;margin:0 auto}
 .hd{background:linear-gradient(135deg,#2d3748,#4a5568);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:10}
@@ -569,7 +569,7 @@ async function loadJobs(){
 		        else if(i.status==='paused'){btns='<button class="btn-s" onclick="resumeJob('+i.id+')">▶ 取消暂停</button><button class="btn-x" onclick="cancelJob('+i.id+')">✖ 取消</button>';}
 		        else{btns='<button class="btn-d">✔ 已完成</button>';}
 	            var info='<div class="qt">数量: '+i.qty+'</div>';
-	            if(i.status==='processing' && i.worker){var wm=i.worker.match(/x(\d+)/);var wc=wm?wm[1]:'?';var st=i.started?i.started.substr(11,5):'?';info+='<div class="qt">👥 '+wc+'人 | 🕐 '+st+' 开始</div>';}
+	            if((i.status==='processing'||i.status==='completed') && i.worker){var wm=i.worker.match(/x(\d+)/);var wc=wm?wm[1]:'?';var st=i.started?i.started.substr(11,5):'?';info+='<div class="qt">👥 '+wc+'人 | 🕐 '+st+' 开始</div>';}
 	            if(i.status==='completed' && i.done_qty) info+='<div class="qt">完成: '+i.done_qty+'件 | '+i.completed.substr(11,5)+'</div>';
 	        var priBadge = i.priority ? '<span class="pri-badge">⭐优先</span>' : '';
 		        var jobNoHtml = i.job_number ? '<span style="font-size:10px;color:#718096">#'+i.job_number+(i.notes?' <span style="color:#a0aec0">'+i.notes+'</span>':'')+' </span>' : '';
@@ -656,38 +656,8 @@ async function confirmComplete(){
 var savedPpl=localStorage.getItem('default_people');if(savedPpl){document.getElementById('peopleInput').value=savedPpl;document.getElementById('peopleLabel').textContent='上班: '+savedPpl+'人';}
 document.getElementById('batchInfo').textContent='全部加工单';
 	// 产能计算器
-	function fmtHours(h){var t=Math.round(h*60);var hr=Math.floor(t/60);var mi=t%60;if(hr>0&&mi>0)return hr+'小时'+mi+'分钟';if(hr>0)return hr+'小时';return mi+'分钟'}
-	function showCalc(){
-	    document.getElementById('calcModal').style.display='flex';
-	    document.getElementById('calcResult').className='calc-res';
-	    document.getElementById('calcResult').style.display='none';
-	    document.getElementById('calcSku').focus();
-	}
-	async function doCalc(){
-	    var sku=document.getElementById('calcSku').value.trim();
-	    var qty=parseInt(document.getElementById('calcQty').value);
-	    var ppl=parseInt(document.getElementById('calcPeople').value)||1;
-	    var res=document.getElementById('calcResult');
-	    if(!sku){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入SKU';return}
-	    if(!qty||qty<1){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入有效数量';return}
-	    res.className='calc-res';res.style.display='block';res.textContent='⏳ 计算中...';
-	    try{
-	        var r=await fetch('/calc_capacity?sku='+encodeURIComponent(sku)+'&qty='+qty+'&people='+ppl);
-	        var d=await r.json();
-	        if(d.status==='ok'){
-	            var html='✅ <b>预计耗时：'+fmtHours(d.hours)+'</b><br>';
-	            if(d.end_time) html+='📅 现在开始 → <b>'+d.end_time+' 完成</b><br>';
-	            html+='📊 数据来源：'+(d.source||'无历史记录');
-	            if(d.rate) html+='<br>⚡ 效率：'+d.rate+' 套/人/小时';
-	            res.className='calc-res ok';res.innerHTML=html;
-	        }else{
-	            res.className='calc-res err';res.innerHTML='❌ '+(d.message||'计算失败');
-	        }
-	    }catch(e){
-	        res.className='calc-res err';res.innerHTML='❌ 请求失败：'+e.message;
-	    }
-		}
-		// 跨页面实时同步
+	
+		async 		// 跨页面实时同步
 		var syncChannel = new BroadcastChannel('workshop_sync');
 	syncChannel.onmessage = function(e) { if (e.data === 'refresh') loadJobs(); };
 	window.addEventListener('storage', function(e) { if (e.key === 'default_people') loadJobs(); });
@@ -842,7 +812,7 @@ async function startJob(id){
 function savePeople(){
     var v=document.getElementById('peopleInput').value;
     if(v&&parseInt(v)>=1){localStorage.setItem('default_people',v);document.getElementById('peopleLabel').textContent='上班: '+v+'人';}
-    try { boardSync.postMessage('refresh'); } catch(e) {}
+    
 }
 async function cancelJob(id){
     if(!confirm('确定取消此加工任务？'))return;
@@ -854,6 +824,7 @@ function toggleAll(){
     var checked=document.getElementById('selectAll').checked;
     document.querySelectorAll('.cb-item').forEach(function(c){c.checked=checked;});
     updateSelCount();
+    }catch(e){document.getElementById('batchInfo').textContent='❌ 加载失败: '+e.message;console.error(e);}
 }
 function updateSelCount(){
     var n=document.querySelectorAll('.cb-item:checked').length;
@@ -971,8 +942,8 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	.calc-res.ok{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;display:block}
 	.calc-res.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}</style></head><body>
 		<div class="hd"><div class="hd-top">
-			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">'''+VERSION+'''</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
-							<div class='people-bar'><span style='font-size:11px;color:#a0aec0'>'''+VERSION+'''</span></div>
+			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.2</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
+							<div class="people-bar"><span style="font-size:11px;color:#a0aec0">v1.2</span></div>
 		</div></div>
 		<div class="stats"><div class="stat-item gray"><div class="num" id="sTotal">0</div><div class="lbl">全部</div></div><div class="stat-item blue"><div class="num" id="sPending">0</div><div class="lbl">待处理</div></div><div class="stat-item orange"><div class="num" id="sProcessing">0</div><div class="lbl">加工中</div></div><div class="stat-item green"><div class="num" id="sToday">0</div><div class="lbl">今日完成</div></div><div class="stat-item red"><div class="num" id="sPriority">0</div><div class="lbl">⭐优先</div></div></div>
 				<div class="filter-bar"><button id="bf_all" class="on" onclick="setFilter('all')">📋 全部</button><button id="bf_pending" onclick="setFilter('pending')">⏸ 待处理</button><button id="bf_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="bf_today" onclick="setFilter('today')">✅ 今日完成</button><button id="bf_history" onclick="setFilter('history')">📋 历史完成</button><button id="bf_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
@@ -1050,11 +1021,11 @@ async function loadBoard(){
     document.getElementById('cntToday').textContent=todayItems.length+' ▶';document.getElementById('cntHistory').textContent=historyItems.length+' ▶';
     var kw=document.getElementById('searchBox').value.trim().toLowerCase();
     if(kw){items=items.filter(function(i){return (i.sku&&i.sku.toLowerCase().indexOf(kw)>=0)||(i.name&&i.name.toLowerCase().indexOf(kw)>=0)||(i.job_number&&i.job_number.toLowerCase().indexOf(kw)>=0);});}
-    // \u4fdd\u5b58\u52fe\u9009\u72b6\u6001
+    // 保存勾选状态
     var checkedIds={};
     document.querySelectorAll('.cb-item:checked').forEach(function(c){checkedIds[c.getAttribute('data-id')]=true;});
     renderBoard(items);
-    // \u6062\u590d\u52fe\u9009\u72b6\u6001
+    // 恢复勾选状态
     document.querySelectorAll('.cb-item').forEach(function(c){if(checkedIds[c.getAttribute('data-id')])c.checked=true;});
     updateSelCount();
     
@@ -1104,7 +1075,10 @@ function renderCol(elId,items,st){
             h+='<div class="btns"><button class="btn-c" onclick="openComplete(this)" data-id="'+i.id+'" data-sku="'+i.sku+'">✔ 完成</button>'+
                 '<button class="btn-x" onclick="cancelJob('+i.id+')">✖ 取消</button></div>';
         }else{
-            h+='<div class="info"><span>✔ 已完成</span>';
+            h+='<div class="info">';
+            if(i.worker) h+='<span>👥 '+i.worker+'</span>';
+            if(i.started) h+='<span>🕐 '+i.started.substr(11,5)+'</span>';
+            h+='<span>✔ 已完成</span>';
             if(i.done_qty) h+='<span>完成: '+i.done_qty+'件</span>';
             if(i.completed) h+='<span>🕐 '+i.completed.substr(11,5)+'</span>';
             h+='</div>';
@@ -1115,10 +1089,10 @@ function renderCol(elId,items,st){
 async function startJob(id){
     var ppl=document.getElementById('peopleInput')?document.getElementById('peopleInput').value:'';
     if(!ppl||parseInt(ppl)<1)ppl='1';localStorage.setItem('default_people',ppl);
-    var wn='\u8f66\u95f4\u5de5\u4eba x'+ppl;
+    var wn='车间工人 x'+ppl;
     var fd=new FormData();fd.append('action','start_job');fd.append('batch_name',id);fd.append('worker',wn);
-    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('\u2705');loadBoard();}else alert('\u274c '+d.message);}
-    catch(e){alert('\u274c '+e.message);}
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadBoard();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
 }
 function savePeople(){
     var v=document.getElementById('peopleInput').value;
@@ -1138,9 +1112,9 @@ async function uploadJobsDirect(fi){
     }catch(e){alert('❌ '+e.message);}
 }
 async function cancelJob(id){
-    if(!confirm('\u786e\u5b9a\u53d6\u6d88\u6b64\u52a0\u5de5\u4efb\u52a1\uff1f'))return;
+    if(!confirm('确定取消此加工任务？'))return;
     var fd=new FormData();fd.append('action','cancel_job');fd.append('batch_name',id);
-    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('\u2705');loadBoard();}else alert('\u274c '+d.message);}
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadBoard();}else alert('❌ '+d.message);}
     catch(e){alert("❌ "+e.message);}
     }
 async function togglePri(id,pri){
@@ -1152,10 +1126,10 @@ function openComplete(btn){curItemId=btn.dataset.id;document.getElementById('mSk
 function closeModal(){document.getElementById('modal').style.display='none';}
 async function confirmComplete(){
     var qty=document.getElementById('mQty').value;
-    if(!qty||parseInt(qty)<=0){alert('\u8bf7\u8f93\u5165\u6709\u6548\u6570\u91cf');return}
+    if(!qty||parseInt(qty)<=0){alert('请输入有效数量');return}
     var fd=new FormData();fd.append('action','complete_job');fd.append('batch_name',curItemId);fd.append('done_qty',qty);
-    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();closeModal();if(d.status==='ok'){alert(d.message);loadBoard();}else alert('\u274c '+d.message);}
-    catch(e){alert('\u274c '+e.message);}
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();closeModal();if(d.status==='ok'){alert(d.message);loadBoard();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
 }
 function toggleAll(){
     var checked=document.getElementById('selectAll').checked;
@@ -1165,19 +1139,19 @@ function toggleAll(){
 function updateSelCount(){
     var n=document.querySelectorAll('.cb-item:checked').length;
     var el=document.getElementById('selCount');
-    if(el) el.textContent=n+'\u9879';
+    if(el) el.textContent=n+'项';
 }
 async function deleteSelected(){
     var ids=[];
     document.querySelectorAll('.cb-item:checked').forEach(function(c){ids.push(c.getAttribute('data-id'));});
-    if(!ids.length){alert('\u8bf7\u9009\u62e9\u8981\u5220\u9664\u7684\u9879');return}
-    if(!confirm('\u786e\u5b9a\u5220\u9664\u9009\u4e2d\u7684 '+ids.length+' \u9879\uff1f'))return;
+    if(!ids.length){alert('请选择要删除的项');return}
+    if(!confirm('确定删除选中的 '+ids.length+' 项？'))return;
     var fd=new FormData();fd.append('action','delete_jobs');fd.append('ids',ids.join(','));
-    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('\u2705 \u5df2\u5220\u9664 '+ids.length+' \u9879');loadBoard();}else alert('\u274c '+d.message);}catch(e){alert('\u274c '+e.message);}
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅ 已删除 '+ids.length+' 项');loadBoard();}else alert('❌ '+d.message);}catch(e){alert('❌ '+e.message);}
 }
-var sp=localStorage.getItem('default_people');if(sp){document.getElementById('peopleInput').value=sp;document.getElementById('peopleLabel').textContent='\u4e0a\u73ed: '+sp+'\u4eba';}
-// \u4ea7\u80fd\u8ba1\u7b97\u5668
-function fmtHours(h){var t=Math.round(h*60);var hr=Math.floor(t/60);var mi=t%60;if(hr>0&&mi>0)return hr+'\u5c0f\u65f6'+mi+'\u5206\u949f';if(hr>0)return hr+'\u5c0f\u65f6';return mi+'\u5206\u949f'}
+var sp=localStorage.getItem('default_people');if(sp){document.getElementById('peopleInput').value=sp;document.getElementById('peopleLabel').textContent='上班: '+sp+'人';}
+// 产能计算器
+function fmtHours(h){var t=Math.round(h*60);var hr=Math.floor(t/60);var mi=t%60;if(hr>0&&mi>0)return hr+'小时'+mi+'分钟';if(hr>0)return hr+'小时';return mi+'分钟'}
 function showCalc(){
     document.getElementById('calcModal').style.display='flex';
     document.getElementById('calcResult').className='calc-res';
@@ -1189,26 +1163,26 @@ async function doCalc(){
     var qty=parseInt(document.getElementById('calcQty').value);
     var ppl=parseInt(document.getElementById('calcPeople').value)||1;
     var res=document.getElementById('calcResult');
-    if(!sku){res.className='calc-res err';res.style.display='block';res.textContent='\u274c \u8bf7\u8f93\u5165SKU';return}
-    if(!qty||qty<1){res.className='calc-res err';res.style.display='block';res.textContent='\u274c \u8bf7\u8f93\u5165\u6709\u6548\u6570\u91cf';return}
-    res.className='calc-res';res.style.display='block';res.textContent='\u23f3 \u8ba1\u7b97\u4e2d...';
+    if(!sku){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入SKU';return}
+    if(!qty||qty<1){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入有效数量';return}
+    res.className='calc-res';res.style.display='block';res.textContent='⏳ 计算中...';
     try{
         var r=await fetch('/calc_capacity?sku='+encodeURIComponent(sku)+'&qty='+qty+'&people='+ppl);
         var d=await r.json();
         if(d.status==='ok'){
-            var html='\u2705 <b>\u9884\u8ba1\u8017\u65f6\uff1a'+fmtHours(d.hours)+'</b><br>';
-            if(d.end_time) html+='\U0001f4c5 \u73b0\u5728\u5f00\u59cb \u2192 <b>'+d.end_time+' \u5b8c\u6210</b><br>';
-            html+='\U0001f4ca \u6570\u636e\u6765\u6e90\uff1a'+(d.source||'\u65e0\u5386\u53f2\u8bb0\u5f55');
-            if(d.rate) html+='<br>\u26a1 \u6548\u7387\uff1a'+d.rate+' \u5957/\u4eba/\u5c0f\u65f6';
+            var html='✅ <b>预计耗时：'+fmtHours(d.hours)+'</b><br>';
+            if(d.end_time) html+='📅 现在开始 → <b>'+d.end_time+' 完成</b><br>';
+            html+='📊 数据来源：'+(d.source||'无历史记录');
+            if(d.rate) html+='<br>⚡ 效率：'+d.rate+' 套/人/小时';
             res.className='calc-res ok';res.innerHTML=html;
         }else{
-            res.className='calc-res err';res.innerHTML='\u274c '+(d.message||'\u8ba1\u7b97\u5931\u8d25');
+            res.className='calc-res err';res.innerHTML='❌ '+(d.message||'计算失败');
         }
     }catch(e){
-        res.className='calc-res err';res.innerHTML='\u274c \u8bf7\u6c42\u5931\u8d25\uff1a'+e.message;
+        res.className='calc-res err';res.innerHTML='❌ 请求失败：'+e.message;
     }
 }
-// \u4ea7\u80fd\u5f55\u5165
+// 产能录入
 function showEta(){
     document.getElementById('etaModal').style.display='flex';
     document.getElementById('etaResult').className='calc-res';
@@ -1222,7 +1196,7 @@ function showEta(){
     document.getElementById('etaSku').focus();
     loadEtaList();
 }
-// \u5b9e\u65f6\u9884\u89c8\u6548\u7387
+// 实时预览效率
 document.getElementById('etaModal').addEventListener('input', function(e){
     if(e.target.id=='etaQty'||e.target.id=='etaPeople'||e.target.id=='etaHours'){
         var qty=parseFloat(document.getElementById('etaQty').value);
@@ -1230,7 +1204,7 @@ document.getElementById('etaModal').addEventListener('input', function(e){
         var hrs=parseFloat(document.getElementById('etaHours').value);
         var pre=document.getElementById('etaCalcPreview');
         if(qty>0 && ppl>0 && hrs>0){
-            pre.textContent=(qty/ppl/hrs).toFixed(2)+' \u5957/\u4eba/\u5c0f\u65f6';
+            pre.textContent=(qty/ppl/hrs).toFixed(2)+' 套/人/小时';
         }else{
             pre.textContent='-';
         }
@@ -1243,23 +1217,23 @@ async function saveEta(){
     var hrs=parseFloat(document.getElementById('etaHours').value);
     var note=document.getElementById('etaNote').value.trim();
     var res=document.getElementById('etaResult');
-    if(!sku){res.className='calc-res err';res.style.display='block';res.textContent='\u274c \u8bf7\u8f93\u5165SKU';return}
-    if(!qty||qty<1){res.className='calc-res err';res.style.display='block';res.textContent='\u274c \u8bf7\u8f93\u5165\u6709\u6548\u5b8c\u6210\u6570\u91cf';return}
-    if(!ppl||ppl<1){res.className='calc-res err';res.style.display='block';res.textContent='\u274c \u8bf7\u8f93\u5165\u6709\u6548\u4eba\u6570';return}
-    if(!hrs||hrs<0.1){res.className='calc-res err';res.style.display='block';res.textContent='\u274c \u8bf7\u8f93\u5165\u6709\u6548\u7528\u65f6\uff08\u5c0f\u65f6\uff09';return}
+    if(!sku){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入SKU';return}
+    if(!qty||qty<1){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入有效完成数量';return}
+    if(!ppl||ppl<1){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入有效人数';return}
+    if(!hrs||hrs<0.1){res.className='calc-res err';res.style.display='block';res.textContent='❌ 请输入有效用时（小时）';return}
     var rate=qty/ppl/hrs;
-    if(rate>200){res.className='calc-res err';res.style.display='block';res.textContent='\u274c \u8ba1\u7b97\u51fa\u7684\u6548\u7387\u5f02\u5e38\uff08'+rate.toFixed(1)+'\uff09\uff0c\u8bf7\u68c0\u67e5\u6570\u636e';return}
-    res.className='calc-res';res.style.display='block';res.textContent='\u23f3 \u4fdd\u5b58\u4e2d...';
+    if(rate>200){res.className='calc-res err';res.style.display='block';res.textContent='❌ 计算出的效率异常（'+rate.toFixed(1)+'），请检查数据';return}
+    res.className='calc-res';res.style.display='block';res.textContent='⏳ 保存中...';
     try{
         var fd=new FormData();
         fd.append('action','save_efficiency');
         fd.append('sku',sku);
         fd.append('rate',rate.toFixed(2));
-        fd.append('note',note||(qty+'\u4e2a/'+ppl+'\u4eba/'+hrs+'\u65f6'));
+        fd.append('note',note||(qty+'个/'+ppl+'人/'+hrs+'时'));
         var r=await fetch('/run',{method:'POST',body:fd});
         var d=await r.json();
         if(d.status==='ok'){
-            res.className='calc-res ok';res.innerHTML='\u2705 '+sku+' \u2192 <b>'+rate.toFixed(2)+' \u5957/\u4eba/\u65f6</b> \u5df2\u4fdd\u5b58';
+            res.className='calc-res ok';res.innerHTML='✅ '+sku+' → <b>'+rate.toFixed(2)+' 套/人/时</b> 已保存';
             document.getElementById('etaSku').value='';
             document.getElementById('etaQty').value='';
             document.getElementById('etaPeople').value='1';
@@ -1268,10 +1242,10 @@ async function saveEta(){
             document.getElementById('etaCalcPreview').textContent='-';
             loadEtaList();
         }else{
-            res.className='calc-res err';res.innerHTML='\u274c '+(d.message||'\u4fdd\u5b58\u5931\u8d25');
+            res.className='calc-res err';res.innerHTML='❌ '+(d.message||'保存失败');
         }
     }catch(e){
-        res.className='calc-res err';res.innerHTML='\u274c \u8bf7\u6c42\u5931\u8d25\uff1a'+e.message;
+        res.className='calc-res err';res.innerHTML='❌ 请求失败：'+e.message;
     }
 }
 async function loadEtaList(){
@@ -1279,18 +1253,18 @@ async function loadEtaList(){
     try{
         var r=await fetch('/get_efficiency');
         var items=await r.json();
-        if(!items||items.length===0){el.innerHTML='<span style="color:#999">\u6682\u65e0\u5f55\u5165\u6570\u636e</span>';return}
+        if(!items||items.length===0){el.innerHTML='<span style="color:#999">暂无录入数据</span>';return}
         var html='';
         for(var i=0;i<items.length;i++){
             var it=items[i];
             html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0">';
-            html+='<span><b>'+escHtml(it.sku)+'</b> \u2192 '+it.rate+' \u5957/\u4eba/\u65f6'+(it.note?' <span style="color:#999">('+escHtml(it.note)+')</span>':'')+'</span>';
-            html+='<button class="del-eta-btn" data-sku="'+escHtml(it.sku)+'" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px" title="\u5220\u9664">\u2715</button>';
+            html+='<span><b>'+escHtml(it.sku)+'</b> → '+it.rate+' 套/人/时'+(it.note?' <span style="color:#999">('+escHtml(it.note)+')</span>':'')+'</span>';
+            html+='<button class="del-eta-btn" data-sku="'+escHtml(it.sku)+'" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px" title="删除">✕</button>';
             html+='</div>';
         }
         el.innerHTML=html;
     }catch(e){
-        el.innerHTML='<span style="color:#e53e3e">\u52a0\u8f7d\u5931\u8d25\uff1a'+e.message+'</span>';
+        el.innerHTML='<span style="color:#e53e3e">加载失败：'+e.message+'</span>';
     }
 }
 document.getElementById('etaList').addEventListener('click', function(e){
@@ -1303,7 +1277,7 @@ document.getElementById('etaQueryList').addEventListener('click', async function
 });
 
 async function delEta(sku){
-    if(!confirm('\u786e\u5b9a\u5220\u9664 '+sku+' \u7684\u4ea7\u80fd\u8bb0\u5f55\uff1f')) return;
+    if(!confirm('确定删除 '+sku+' 的产能记录？')) return;
     try{
         var fd=new FormData();
         fd.append('action','delete_efficiency');
@@ -1312,22 +1286,22 @@ async function delEta(sku){
         var d=await r.json();
         if(d.status==='ok'){
             var res=document.getElementById('etaResult');
-            res.className='calc-res ok';res.style.display='block';res.textContent='\u2705 \u5df2\u5220\u9664';
+            res.className='calc-res ok';res.style.display='block';res.textContent='✅ 已删除';
             loadEtaList();
         }else{
-            alert('\u274c '+(d.message||'\u5220\u9664\u5931\u8d25'));
+            alert('❌ '+(d.message||'删除失败'));
         }
     }catch(e){
-        alert('\u274c \u8bf7\u6c42\u5931\u8d25\uff1a'+e.message);
+        alert('❌ 请求失败：'+e.message);
     }
 }
 function escHtml(s){if(!s)return '';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-// \u4ea7\u80fd\u67e5\u8be2
+// 产能查询
 var etaQueryData=[];
 function showEtaQuery(){
     document.getElementById('etaQueryModal').style.display='flex';
     document.getElementById('etaQuerySku').value='';
-    document.getElementById('etaQueryList').innerHTML='<span style="color:#999">\u8f93\u5165SKU\u641c\u7d22...</span>';
+    document.getElementById('etaQueryList').innerHTML='<span style="color:#999">输入SKU搜索...</span>';
     document.getElementById('etaQueryDelBtn').style.display='none';
     document.getElementById('etaQueryCount').textContent='';
     etaQueryData=[];
@@ -1336,25 +1310,25 @@ function showEtaQuery(){
 async function searchEtaQuery(){
     var kw=document.getElementById('etaQuerySku').value.trim().toLowerCase();
     var el=document.getElementById('etaQueryList');
-    if(!kw){el.innerHTML='<span style="color:#999">\u8f93\u5165SKU\u641c\u7d22...</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
+    if(!kw){el.innerHTML='<span style="color:#999">输入SKU搜索...</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
     try{
-        // \u540c\u65f6\u83b7\u53d6\u624b\u52a8\u5f55\u5165\u548c\u52a0\u5de5\u5b8c\u6210\u6570\u636e
+        // 同时获取手动录入和加工完成数据
         var [manualRes, jobRes]=await Promise.all([
             fetch('/get_efficiency').then(function(r){return r.json()}),
             fetch('/get_job_efficiency').then(function(r){return r.json()})
         ]);
         var allItems=[];
-        // \u624b\u52a8\u5f55\u5165\uff08\u5e26\u5220\u9664\u529f\u80fd\uff09
+        // 手动录入（带删除功能）
         if(manualRes&&manualRes.length){
             manualRes.forEach(function(it){allItems.push({type:'manual',sku:it.sku,rate:it.rate,note:it.note||'',created:it.created});});
         }
-        // \u52a0\u5de5\u5b8c\u6210\uff08\u53ea\u8bfb\uff0c\u4e0d\u53ef\u5220\u9664\uff09
+        // 加工完成（只读，不可删除）
         if(jobRes&&jobRes.length){
-            jobRes.forEach(function(it){allItems.push({type:'job',sku:it.sku,rate:it.rate,note:it.qty+'\u4e2a/'+it.people+'\u4eba/'+it.hours+'\u65f6',created:it.completed});});
+            jobRes.forEach(function(it){allItems.push({type:'job',sku:it.sku,rate:it.rate,note:it.qty+'个/'+it.people+'人/'+it.hours+'时',created:it.completed});});
         }
-        if(allItems.length===0){el.innerHTML='<span style="color:#999">\u6682\u65e0\u6570\u636e</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
+        if(allItems.length===0){el.innerHTML='<span style="color:#999">暂无数据</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
         var filtered=allItems.filter(function(it){return it.sku.toLowerCase().indexOf(kw)>=0});
-        if(filtered.length===0){el.innerHTML='<span style="color:#999">\u672a\u627e\u5230\u5339\u914d\u7684SKU</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
+        if(filtered.length===0){el.innerHTML='<span style="color:#999">未找到匹配的SKU</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
         etaQueryData=filtered;
         var html='';
         for(var i=0;i<filtered.length;i++){
@@ -1366,26 +1340,26 @@ async function searchEtaQuery(){
             }else{
                 html+='<span style="width:16px;height:16px;margin-top:3px;flex-shrink:0"></span>';
             }
-            html+='<div style="flex:1;font-size:13px;line-height:1.6"><b>'+escHtml(it.sku)+'</b> \u2192 '+it.rate+' \u5957/\u4eba/\u65f6';
-            if(it.note) html+='<br><span style="color:#888;font-size:11px">'+(isManual?'\U0001f4dd ':'\u2714 ')+escHtml(it.note)+'</span>';
-            html+='<br><span style="color:#aaa;font-size:11px">\U0001f550 '+escHtml(it.created)+'</span>';
-            if(!isManual) html+=' <span style="color:#38a169;font-size:10px">[\u52a0\u5de5\u5b8c\u6210]</span>';
-                        html+='<button class="del-eta-btn" data-sku="'+escHtml(it.sku)+'" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px;flex-shrink:0" title="\u5220\u9664">\u2715</button>';
+            html+='<div style="flex:1;font-size:13px;line-height:1.6"><b>'+escHtml(it.sku)+'</b> → '+it.rate+' 套/人/时';
+            if(it.note) html+='<br><span style="color:#888;font-size:11px">'+(isManual?'📝 ':'✔ ')+escHtml(it.note)+'</span>';
+            html+='<br><span style="color:#aaa;font-size:11px">🕐 '+escHtml(it.created)+'</span>';
+            if(!isManual) html+=' <span style="color:#38a169;font-size:10px">[加工完成]</span>';
+                        html+='<button class="del-eta-btn" data-sku="'+escHtml(it.sku)+'" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px;flex-shrink:0" title="删除">✕</button>';
 html+='</div></div>';
         }
         el.innerHTML=html;
         document.getElementById('etaQueryDelBtn').style.display=filtered.some(function(it){return it.type==='manual'})?'inline-block':'none';
-        document.getElementById('etaQueryCount').textContent='\u5171 '+filtered.length+' \u6761'+(filtered.some(function(it){return it.type==='manual'})?'\uff08\u53ef\u52fe\u9009\u5220\u9664\u624b\u52a8\u5f55\u5165\uff09':'');
+        document.getElementById('etaQueryCount').textContent='共 '+filtered.length+' 条'+(filtered.some(function(it){return it.type==='manual'})?'（可勾选删除手动录入）':'');
     }catch(e){
-        el.innerHTML='<span style="color:#e53e3e">\u52a0\u8f7d\u5931\u8d25\uff1a'+e.message+'</span>';
+        el.innerHTML='<span style="color:#e53e3e">加载失败：'+e.message+'</span>';
     }
 }
 async function deleteSelectedEtaQuery(){
     var cbs=document.querySelectorAll('.eq-cb:checked');
     var skus=[];
     cbs.forEach(function(cb){skus.push(cb.value);});
-    if(!skus.length){alert('\u8bf7\u9009\u62e9\u8981\u5220\u9664\u7684\u6761\u76ee');return}
-    if(!confirm('\u786e\u5b9a\u5220\u9664\u9009\u4e2d\u7684 '+skus.length+' \u6761\u4ea7\u80fd\u8bb0\u5f55\uff1f')) return;
+    if(!skus.length){alert('请选择要删除的条目');return}
+    if(!confirm('确定删除选中的 '+skus.length+' 条产能记录？')) return;
     var ok=0,fail=0;
     for(var i=0;i<skus.length;i++){
         try{
@@ -1397,7 +1371,7 @@ async function deleteSelectedEtaQuery(){
             if(d.status==='ok') ok++; else fail++;
         }catch(e){fail++;}
     }
-    alert('\u2705 \u5df2\u5220\u9664 '+ok+' \u6761'+(fail?'\uff0c\u274c '+fail+' \u6761\u5931\u8d25':''));
+    alert('✅ 已删除 '+ok+' 条'+(fail?'，❌ '+fail+' 条失败':''));
     searchEtaQuery();
 }
 async function delEtaQueryItem(sku){
@@ -1439,9 +1413,7 @@ function renderEtaQueryResults(){
     document.getElementById('etaQueryDelBtn').style.display=filtered.some(function(it){return it.type==='manual'})?'inline-block':'none';
     document.getElementById('etaQueryCount').textContent='共 '+filtered.length+' 条'+(filtered.some(function(it){return it.type==='manual'})?'（可勾选删除手动录入）':'');
 }
-// \u8de8\u9875\u9762\u5b9e\u65f6\u540c\u6b65
 // sync disabled
-
 document.addEventListener('visibilitychange', function() { if (!document.hidden) loadBoard(); });
 loadBoard();setInterval(loadBoard,10000);
 </script></body></html>'''
@@ -1824,11 +1796,13 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             ct = self.headers.get('Content-Type','')
-            b = self.rfile.read(int(self.headers['Content-Length']))
+            print(f'[POST] CT={ct[:80]}', flush=True)
+            print(f'[POST] CL={self.headers.get("Content-Length","?")}', flush=True)
+            b = self.rfile.read(int(self.headers['Content-Length'])); print(f'[POST] read {len(b)} bytes, first 100: {b[:100]}', flush=True)
             boundary = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', ct)
-            if not boundary: return self._json({'status':'error','message':'No boundary'})
+            if not boundary: print('[POST] NO boundary found in CT', flush=True); return self._json({'status':'error','message':'No boundary'})
             bnd = boundary.group(1) or boundary.group(2)
-            parts = b.split(('--'+bnd).encode())
+            parts = b.split(('--'+bnd).encode()); print(f'[POST] boundary={bnd}, parts={len(parts)}', flush=True)
             action = ''; fdata = None; fname = None; batch_name = ''
             self.post_data = {}
             for p in parts:
@@ -1842,7 +1816,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 key = nm.group(1)
                 val = ds.decode('utf-8','replace').strip()
                 self.post_data[key] = val
-                if key == 'action': action = val
+                if key == 'action': action = val; print(f'[POST] action={action}', flush=True)
                 elif key == 'batch_name': batch_name = val
                 elif key == 'file':
                     fdata = ds
@@ -1986,6 +1960,7 @@ class H(http.server.BaseHTTPRequestHandler):
                     conn.commit(); conn.close()
                     return self._json({'status':'ok','message':'已删除'})
                 return self._json({'status':'error','message':'参数错误'})
+            print(f'[POST] dispatching action={action}', flush=True)
             func = {'lbl100':run_lbl100,'lbl30':run_lbl30,'us':run_us,'ca':run_ca,'rc':run_rc}.get(action)
             if func:
                 print(f'[DEBUG] Calling {action} with save_path={save_path}', flush=True)
@@ -2008,8 +1983,9 @@ class H(http.server.BaseHTTPRequestHandler):
     
     def _html(self, s): 
         data = s.encode('utf-8')
-        self.send_response(200); self.send_header('Content-Type','text/html;charset=utf-8')
-        self.send_header('Content-Length',str(len(data)))
+        self.send_response(200)
+        self.send_header('Cache-Control','no-cache, no-store, must-revalidate'); self.send_header('Pragma','no-cache'); self.send_header('Expires','0')
+        self.send_header('Content-Type','text/html;charset=utf-8')
         self.send_header('Access-Control-Allow-Origin','*'); self.end_headers()
         self.wfile.write(data)
     def _json(self, d): 
