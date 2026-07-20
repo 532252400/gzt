@@ -1849,18 +1849,31 @@ class H(http.server.BaseHTTPRequestHandler):
                 done_qty = self._get_post('done_qty', '0')
                 try: done_qty = int(float(done_qty))
                 except: done_qty = 0
-                if item_id:
+                if item_id and done_qty > 0:
                     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
                     now = datetime.datetime.now().isoformat()[:19]
-                    c.execute('SELECT started_at FROM job_items WHERE id=?', (item_id,))
+                    c.execute("SELECT started_at, qty, sku, product_name, customer, notes, worker, job_number, priority, batch_id FROM job_items WHERE id=? AND status='processing'", (item_id,))
                     row = c.fetchone()
-                    started = row[0] if row else ''
-                    c.execute('UPDATE job_items SET status=?, completed_at=?, completed_qty=? WHERE id=? AND status=\'processing\'', ('completed', now, done_qty, item_id))
+                    if not row:
+                        conn.close()
+                        self._json({'status':'error','message':'❌ 订单不在加工中'})
+                        return
+                    started, order_qty, sku, name, customer, notes, worker, job_number, priority, batch_id = row
+                    if done_qty >= (order_qty or 0):
+                        # 全部完成
+                        c.execute('UPDATE job_items SET status=?, completed_at=?, completed_qty=? WHERE id=?', ('completed', now, order_qty, item_id))
+                        msg = '✅ 全部完成！共' + str(order_qty) + '件'
+                    else:
+                        # 部分完成：拆分订单
+                        remaining = order_qty - done_qty
+                        c.execute('UPDATE job_items SET qty=?, status=?, completed_qty=0 WHERE id=?', (remaining, 'pending', item_id))
+                        c.execute('INSERT INTO job_items (sku, product_name, qty, customer, notes, status, worker, started_at, completed_at, completed_qty, priority, job_number, batch_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                            (sku, name, done_qty, customer, notes, 'completed', worker, started, now, done_qty, priority, job_number, batch_id))
+                        msg = '✅ 已完成' + str(done_qty) + '件，剩余' + str(remaining) + '件已回到待处理'
                     conn.commit(); conn.close()
-                    msg = '\u2705 \u5df2完成'
                     self._json({'status':'ok','message':msg})
                     return
-                self._json({'status':'error','message':'\u274c 无效ID'})
+                self._json({'status':'error','message':'❌ 无效ID或数量'})
                 return
             if action == 'cancel_job':
                 item_id = int(batch_name) if batch_name.isdigit() else 0
