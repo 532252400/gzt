@@ -2065,35 +2065,43 @@ def run_lbl100(fp):
     bn = os.path.basename(fp); nc,fd = extract_name(bn)
     ff = get_date_from_name(bn) or '0000-00-00'
     boxes = defaultdict(list)
-    nc6 = ws.max_column == 6
+    # Read header row to map column names
+    headers = {}
+    for c in range(1, ws.max_column+1):
+        h = str(ws.cell(1,c).value or '').strip()
+        if h: headers[h] = c
+    # Find columns by name
+    def _col(*names):
+        for n in names:
+            if n in headers: return headers[n]
+        return 0
+    col_name = _col('品名')
+    col_model = _col('型号','货位码')
+    col_pk = _col('包数')
+    col_qty = _col('单包数量','单包数')
+    col_total = _col('采购量')
+    col_box = _col('箱号','装箱序号')
+    col_sku = _col('SKU')
+    if not col_name or not col_box:
+        return '\u274c \u627e\u4e0d\u5230\u201c\u54c1\u540d\u201d\u6216\u201c\u7bb1\u53f7\u201d\u5217\uff0c\u8bf7\u68c0\u67e5Excel\u8868\u5934'
     for r in range(2, ws.max_row+1):
-        if nc6:
-            name = str(ws.cell(r,1).value or '').strip()
-            if not name: continue
-            model = str(ws.cell(r,2).value or '').strip()
-            pk = str(ws.cell(r,3).value or ''); qty = str(ws.cell(r,4).value or ''); total = str(ws.cell(r,5).value or '')
-            box = str(ws.cell(r,6).value or '').strip()
-            sku = ''
-        else:
-            sku = str(ws.cell(r,1).value or '').strip()
-            if not sku:
-                sku = str(ws.cell(r,3).value or '').strip()
-                if not sku: continue
-                name = str(ws.cell(r,4).value or '').strip(); model = str(ws.cell(r,5).value or '').strip()
-                pk = str(ws.cell(r,6).value or ''); qty = str(ws.cell(r,7).value or ''); total = str(ws.cell(r,8).value or '')
-                box = str(ws.cell(r,9).value or '').strip()
-            else:
-                name = str(ws.cell(r,2).value or '').strip(); model = str(ws.cell(r,3).value or '').strip()
-                pk = str(ws.cell(r,4).value or ''); qty = str(ws.cell(r,5).value or ''); total = str(ws.cell(r,6).value or '')
-                box = str(ws.cell(r,7).value or '').strip()
-        if box.isdigit(): boxes[int(box)].append((sku,name,model,pk,qty,total))
+        name = str(ws.cell(r,col_name).value or '').strip() if col_name else ''
+        if not name: continue
+        box = str(ws.cell(r,col_box).value or '').strip() if col_box else ''
+        if not box.isdigit(): continue
+        model = str(ws.cell(r,col_model).value or '').strip() if col_model else ''
+        pk = str(ws.cell(r,col_pk).value or '') if col_pk else ''
+        qty = str(ws.cell(r,col_qty).value or '') if col_qty else ''
+        total = str(ws.cell(r,col_total).value or '') if col_total else ''
+        sku = str(ws.cell(r,col_sku).value or '').strip() if col_sku else ''
+        boxes[int(box)].append((sku,name,model,pk,qty,total))
     tb = len(boxes); ts = sum((len(v)+5)//6 for v in boxes.values())
     sp = [(b,len(boxes[b]),(len(boxes[b])+5)//6) for b in sorted(boxes.keys()) if (len(boxes[b])+5)//6>1]
     lh = ''
     for idx,bn_ in enumerate(sorted(boxes.keys()),1):
         for ps in range(0, len(boxes[bn_]), 6):
             ch = boxes[bn_][ps:ps+6]
-            lh += '<div class="l"><div class="bh">(\u7b2c'+str(idx)+'\u7bb1/\u603b'+str(tb)+'\u7bb1)</div><table><tr><th>\u54c1\u540d</th><th>\u8d27\u4f4d\u7801</th><th>\u5305\u6570</th><th>\u5355\u5305\u6570\u91cf</th><th>\u91c7\u8d2d\u91cf</th><th>\u88c5\u7bb1\u5e8f\u53f7</th></tr>'
+            lh += '<div class="l"><div class="bh">(\u7b2c'+str(idx)+'\u7bb1/\u603b'+str(tb)+'\u7bb1)</div><table><tr><th>\u54c1\u540d</th><th>\u578b\u53f7</th><th>\u5305\u6570</th><th>\u5355\u5305\u6570\u91cf</th><th>\u91c7\u8d2d\u91cf</th><th>\u7bb1\u53f7</th></tr>'
             for sku,name,model,pk,qty,total in ch:
                 lh += '<tr><td style="font-size:12px">'+name+'</td><td style="font-size:10px">'+model+'</td><td style="font-size:12px;text-align:center">'+pk+'</td><td style="font-size:12px;text-align:center">'+qty+'</td><td style="font-size:12px;text-align:center">'+total+'</td><td style="font-size:12px;text-align:center">'+str(idx)+'</td></tr>'
             lh += '</table></div>'
