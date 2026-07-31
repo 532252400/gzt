@@ -1861,8 +1861,8 @@ class H(http.server.BaseHTTPRequestHandler):
                     started, order_qty, sku, name, customer, notes, worker, job_number, priority, batch_id = row
                     if done_qty >= (order_qty or 0):
                         # 全部完成
-                        c.execute('UPDATE job_items SET status=?, completed_at=?, completed_qty=? WHERE id=?', ('completed', now, order_qty, item_id))
-                        msg = '✅ 全部完成！共' + str(order_qty) + '件'
+                        c.execute('UPDATE job_items SET status=?, completed_at=?, completed_qty=? WHERE id=?', ('completed', now, done_qty, item_id))
+                        msg = '✅ 全部完成！共' + str(done_qty) + '件'
                     else:
                         # 部分完成：拆分订单
                         remaining = order_qty - done_qty
