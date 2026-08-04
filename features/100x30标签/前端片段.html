@@ -1,0 +1,17 @@
+<!-- 100×30 提货标签 - 前端卡片 -->
+<div class="cd" data-cat="label">
+  <div class="ch">
+    <div class="ico" style="background:#38a169">📜</div>
+    <h2>100×30 提货标签</h2>
+    <span class="tg1">司机信息</span>
+  </div>
+  <div class="cb">
+    <p>上传司机提货信息Excel，1列=标签。</p>
+    <div class="fd" onclick="f('f2')">
+      <span id="t2">📄 选择 Excel 文件</span>
+    </div>
+    <input type="file" id="f2" accept=".xlsx" class="hd" onchange="fs('f2','t2','b2')">
+    <button class="btn bp" id="b2" onclick="go('lbl30')" disabled>生成标签</button>
+    <div class="rs" id="r2"></div>
+  </div>
+</div>

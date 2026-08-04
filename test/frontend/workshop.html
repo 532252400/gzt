@@ -1,0 +1,214 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>车间加工(手机端)</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;color:#333;padding:0;max-width:500px;margin:0 auto}
+.hd{background:linear-gradient(135deg,#2d3748,#4a5568);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:10}
+.hd h1{font-size:17px}.hd p{font-size:11px;color:#cbd5e0;margin-top:2px}
+.sel{width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;margin:10px 12px;width:calc(100% - 24px);background:#fff}
+.filter-bar{display:flex;gap:4px;margin:4px 12px 8px}
+.filter-bar button{flex:1;padding:6px;border:1px solid #3182ce;border-radius:6px;font-size:12px;cursor:pointer;background:#fff;color:#3182ce;font-weight:500}
+.filter-bar button.on{background:#e53e3e;border-color:#e53e3e;color:#fff}
+.pri-badge{display:inline-block;background:#e53e3e;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.li{list-style:none;padding:0;margin:0}
+.li li{background:#fff;margin:8px 12px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.li .top{display:flex;align-items:center;padding:10px 12px 6px;gap:8px}
+.li .st{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.li .st.pd{background:#a0aec0}.li .st.pr{background:#d69e2e;animation:bl 1s infinite}
+.li .st.cp{background:#38a169}
+@keyframes bl{50%{opacity:.4}}
+.li .sk{font-size:13px;font-weight:600;flex:1}
+.li .nm{font-size:11px;color:#718096;margin:0 12px 8px}
+.li .qt{font-size:11px;color:#718096;margin:0 12px 2px}
+.li .btns{display:flex;gap:6px;padding:6px 12px 10px}
+.btns button{flex:1;padding:8px;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500}
+.btn-s{background:#3182ce;color:#fff}.btn-c{background:#38a169;color:#fff}.btn-x{background:#e53e3e;color:#fff}.btn-d{background:#e2e8f0;color:#718096;cursor:not-allowed}
+.people-bar{display:flex;align-items:center;gap:4px;margin:-2px 12px 10px;font-size:12px;color:#4a5568}
+.people-bar input{width:56px;padding:3px 6px;border:1px solid #cbd5e0;border-radius:4px;font-size:12px;text-align:center;background:#fff}
+.people-bar input:focus{outline:none;border-color:#3182ce;box-shadow:0 0 0 2px rgba(49,130,206,.15)}
+.ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:50;display:none;align-items:center;justify-content:center}
+.ov .bx{background:#fff;border-radius:12px;padding:20px;width:300px;max-width:90%}
+.ov .bx h3{font-size:15px;margin-bottom:12px}
+.ov .bx input{width:100%;padding:10px;border:2px solid #3182ce;border-radius:8px;font-size:16px;text-align:center;margin-bottom:12px}
+.ov .bx button{padding:8px 20px;border:none;border-radius:6px;font-size:13px;cursor:pointer;margin:0 4px}
+.na{text-align:center;font-size:12px;color:#999;padding:40px 20px}
+.cr{font-size:11px;color:#999;text-align:center;padding:12px;margin-top:8px}
+	.bt{font-size:11px;color:#cbd5e0;text-decoration:none}
+	.pri-item{background:#fffaf0;border-left:3px solid #e53e3e;margin-bottom:6px!important}</style></head><body>
+				<div class="hd"><div style="display:flex;align-items:center;gap:8px"><h1 style="flex:1">🔧 车间加工列表(手机端) <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.2</span></h1><a href="#" style="color:#fff;text-decoration:none;font-size:18px" onclick="showQR();return false">📱</a></div><p id="batchInfo">全部加工单</p></div>
+			<div class="filter-bar"><button id="f_pending" class="on" onclick="setFilter('pending')">📋 待处理</button><button id="f_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="f_completed" onclick="setFilter('completed')">✅ 已完成</button><button id="f_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
+			<div style="margin:0 12px 4px;padding:6px 10px;background:#fffbeb;border:1px solid #f6e05e;border-radius:6px;font-size:11px;color:#975a16">📢 开始、暂停、完工环节，须第一时间点击对应按键（如打包、下班点暂停）</div>
+			<div id="priNotice" style="display:none;margin:0 12px 6px;padding:8px 12px;background:#fff5f5;border:1px solid #fed7d7;border-radius:8px;font-size:12px;color:#e53e3e;font-weight:600;text-align:center;cursor:pointer" onclick="setFilter('priority')">⭐ 有 <span id="priCount">0</span> 个优先订单待处理</div>
+				<div class="people-bar"><span>👥</span><input id="peopleInput" type="number" min="1" placeholder="人数" onchange="savePeople()"><span style="font-size:11px;color:#999" id="peopleLabel">上班: -</span></div>
+		<div style="margin:0 12px 6px"><input id="searchBoxWs" type="text" placeholder="🔍 搜索SKU、品名、单号..." oninput="doSearchWs()" style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;outline:none;box-sizing:border-box"></div>
+<ul class="li" id="jobList"></ul>
+<div class="ov" id="modal"><div class="bx"><h3 id="mTitle">完成加工</h3><p style="font-size:12px;color:#666;margin-bottom:6px" id="mSku"></p><input id="mQty" type="number" placeholder="输入完成数量" min="1" onkeydown="if(event.key==='Enter')confirmComplete()"><div style="display:flex;gap:6px;margin-bottom:10px"><button class="btn-s" onclick="fillQty()" style="flex:1;font-size:11px;padding:6px">📋 订单数量</button></div><button class="btn-s" onclick="confirmComplete()">确定完成</button><button onclick="closeModal()" style="background:#e2e8f0">取消</button></div></div>
+<div class="ov" id="priAlert" style="display:none;z-index:100"><div class="bx" style="text-align:center;padding:20px" onclick="event.stopPropagation()"><div style="font-size:48px;margin-bottom:10px">⭐</div><h2 style="color:#e53e3e;margin-bottom:8px">优先订单！</h2><p style="font-size:14px;color:#4a5568;margin-bottom:16px">有 <span id="priAlertCount" style="font-weight:700;color:#e53e3e">0</span> 个优先订单待处理</p><button class="btn-s" onclick="dismissPriAlert()" style="padding:10px 30px;font-size:15px">知道了</button></div></div>
+<script>
+var curItemId = 0;
+var curFilter = 'pending';
+function setFilter(mode){
+    curFilter=mode;
+    document.querySelectorAll('.filter-bar button').forEach(function(b){b.className=''});
+    document.getElementById('f_'+mode).className='on';
+    loadJobs();
+}
+async function loadJobs(){
+	    var ppl=localStorage.getItem('default_people')||'1';
+	    var r=await fetch('/workshop_data?people='+ppl);var items=await r.json();
+	    window.allItems=items;
+	    var kw=document.getElementById('searchBoxWs').value.trim().toLowerCase();
+	    if(kw){items=items.filter(function(i){return (i.sku&&i.sku.toLowerCase().indexOf(kw)>=0)||(i.name&&i.name.toLowerCase().indexOf(kw)>=0)||(i.job_number&&i.job_number.toLowerCase().indexOf(kw)>=0);});}
+	    var ul=document.getElementById('jobList');ul.innerHTML='';
+    if(!items.length){ul.innerHTML='<div class="na">暂无加工单<br>请先在工作台上传</div>';return}
+    var info=document.getElementById('batchInfo');
+    if(info) info.textContent='全部加工单 ('+items.length+'项)';
+    // 优先订单提醒
+    var priPending=items.filter(function(i){return i.status==='pending' && i.priority==1}).length;
+    var el=document.getElementById('priNotice');
+    if(el){if(priPending>0){el.style.display='block';document.getElementById('priCount').textContent=priPending}else el.style.display='none'}
+	    // 优先单强提醒（持续响铃+弹窗，点"知道了"才停）
+		    if(priPending>0 && (!window.lastPriCount || priPending>window.lastPriCount)){
+		        window.priAlertDismissed=false;
+		        document.getElementById('priAlertCount').textContent=priPending;
+		        document.getElementById('priAlert').style.display='flex';
+		        startPriBeep();
+	    }
+	    window.lastPriCount=priPending;
+    // 更新筛选按钮数量
+    var ti=items;
+	    document.getElementById('f_pending').textContent='📋 待处理 ('+ti.filter(function(x){return x.status==='pending'||x.status==='paused'}).length+')';
+	    document.getElementById('f_processing').textContent='🔧 加工中 ('+ti.filter(function(x){return x.status==='processing'}).length+')';
+	    document.getElementById('f_completed').textContent='✅ 已完成 ('+ti.filter(function(x){return x.status==='completed'}).length+')';
+	    document.getElementById('f_priority').textContent='⭐ 优先 ('+ti.filter(function(x){return x.priority==1 && x.status!=='completed'}).length+')';
+	    if(curFilter==='all') items=items.filter(function(i){return i.status!=='completed'});
+	    if(curFilter==='pending') items=items.filter(function(i){return i.status==='pending'||i.status==='paused'});
+	    if(curFilter==='priority') items=items.filter(function(i){return i.priority==1 && i.status!=='completed'});
+	    if(curFilter==='processing') items=items.filter(function(i){return i.status==='processing'});
+	    if(curFilter==='completed') items=items.filter(function(i){return i.status==='completed'});
+	    items.sort(function(a,b){return (a.sku||'').localeCompare(b.sku||'');});
+	    items.forEach(function(i){
+	        var li=document.createElement('li');
+	        if(i.priority) li.className='pri-item';
+	        var statusLabel={pending:'待处理',processing:'加工中',paused:'已暂停',completed:'已完成'};
+	        var stClass = i.status;
+	        var btns='';
+		        if(i.status==='pending'){btns='<button class="btn-s" onclick="startJob('+i.id+')">▶ 开始加工</button>';}
+		        else if(i.status==='processing'){btns='<button class="btn-c" onclick="openComplete(this)" data-id="'+i.id+'" data-sku="'+i.sku+'" data-qty="'+i.qty+'">✔ 完成</button><button class="btn-x" style="background:#d69e2e" onclick="pauseJob('+i.id+')">⏸ 暂停</button><button class="btn-x" onclick="cancelJob('+i.id+')">✖ 取消</button>';}
+		        else if(i.status==='paused'){btns='<button class="btn-s" onclick="resumeJob('+i.id+')">▶ 取消暂停</button><button class="btn-x" onclick="cancelJob('+i.id+')">✖ 取消</button>';}
+		        else{btns='<button class="btn-d">✔ 已完成</button>';}
+	            var info='<div class="qt">数量: '+i.qty+'</div>';
+	            if(i.status==='completed' && i.done_qty) info+='<div class="qt">完成: '+i.done_qty+'件 | '+i.completed.substr(11,5)+'</div>';
+	        var priBadge = i.priority ? '<span class="pri-badge">⭐优先</span>' : '';
+		        var jobNoHtml = i.job_number ? '<span style="font-size:10px;color:#718096">#'+i.job_number+(i.notes?' <span style="color:#a0aec0">'+i.notes+'</span>':'')+' </span>' : '';
+		        li.innerHTML='<div class="top"><span class="st '+stClass+'"></span><span class="sk">'+i.sku+priBadge+'</span>'+jobNoHtml+'<span style="font-size:10px;color:#999">'+statusLabel[i.status]+'</span></div>'+'<div class="nm">'+(i.name||'')+'</div>'+info+'<div class="btns">'+btns+'</div>';
+		        ul.appendChild(li);
+		    });
+			    try { syncChannel.postMessage('refresh'); } catch(e) {}
+			}
+			function doSearchWs(){ loadJobs(); }
+		async function startJob(id){
+		    var ppl=document.getElementById('peopleInput')?document.getElementById('peopleInput').value:'';
+    if(!ppl||parseInt(ppl)<1)ppl='1';
+    localStorage.setItem('default_people',ppl);
+    var wn='车间工人 x'+ppl;
+    var fd=new FormData();fd.append('action','start_job');fd.append('batch_name',id);fd.append('worker',wn);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+function savePeople(){
+    var v=document.getElementById('peopleInput').value;
+    if(v&&parseInt(v)>=1){localStorage.setItem('default_people',v);document.getElementById('peopleLabel').textContent='上班: '+v+'人';}
+    try { syncChannel.postMessage('refresh'); } catch(e) {}
+    if(typeof loadJobs==='function') loadJobs();
+    if(typeof loadBoard==='function') loadBoard();
+}
+async function cancelJob(id){
+    if(!confirm('确定取消此加工任务？'))return;
+    var fd=new FormData();fd.append('action','cancel_job');fd.append('batch_name',id);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert("❌ "+e.message);}
+    }
+	async function pauseJob(id){
+	    var fd=new FormData();fd.append('action','pause_job');fd.append('batch_name',id);
+	    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('⏸');loadJobs();}else alert('❌ '+d.message);}
+	    catch(e){alert('❌ '+e.message);}
+	}
+		async function resumeJob(id){
+		    var fd=new FormData();fd.append('action','resume_job');fd.append('batch_name',id);
+		    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('▶');loadJobs();}else alert('❌ '+d.message);}
+		    catch(e){alert('❌ '+e.message);}
+		}
+		// 优先单强提醒（含系统通知）
+		var priBeepTimer=null;
+		function startPriBeep(){
+		    // 请求系统通知权限并发送锁屏通知
+		    if('Notification' in window && Notification.permission!=='denied'){
+		        Notification.requestPermission().then(function(p){
+		            if(p==='granted'){
+		                var n=new Notification('⭐ 优先订单！',{body:'有 '+document.getElementById('priAlertCount').textContent+' 个优先订单待处理',tag:'pri-order',requireInteraction:true});
+		                setTimeout(function(){n.close()},10000);
+		            }
+		        });
+		    }
+		    if(priBeepTimer) return;
+		    function beep(){
+		        try{
+		            var ac=new(window.AudioContext||window.webkitAudioContext)();
+		            var osc=ac.createOscillator();var g=ac.createGain();
+		            osc.connect(g);g.connect(ac.destination);
+		            osc.frequency.value=880;osc.type='sine';
+		            g.gain.setValueAtTime(0.3,ac.currentTime);
+		            g.gain.exponentialRampToValueAtTime(0.01,ac.currentTime+0.3);
+		            osc.start(ac.currentTime);osc.stop(ac.currentTime+0.3);
+		        }catch(e){}
+		        if(!window.priAlertDismissed) priBeepTimer=setTimeout(beep,2000);
+		    }
+		    beep();
+		}
+		function dismissPriAlert(){
+		    window.priAlertDismissed=true;
+		    document.getElementById('priAlert').style.display='none';
+		    if(priBeepTimer){clearTimeout(priBeepTimer);priBeepTimer=null}
+		}
+	function openComplete(btn){curItemId=btn.dataset.id;curOrderQty=btn.dataset.qty||'';document.getElementById('mSku').textContent=btn.dataset.sku;document.getElementById('mQty').value='';document.getElementById('modal').style.display='flex';}
+	    function fillQty(){document.getElementById('mQty').value=curOrderQty||''}
+function closeModal(){document.getElementById('modal').style.display='none';}
+async function confirmComplete(){
+    var qty=document.getElementById('mQty').value;
+    if(!qty||parseInt(qty)<=0){alert('请输入有效数量');return}
+    var fd=new FormData();fd.append('action','complete_job');fd.append('batch_name',curItemId);fd.append('done_qty',qty);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();closeModal();if(d.status==='ok'){alert(d.message);loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+var savedPpl=localStorage.getItem('default_people');if(savedPpl){document.getElementById('peopleInput').value=savedPpl;document.getElementById('peopleLabel').textContent='上班: '+savedPpl+'人';}
+document.getElementById('batchInfo').textContent='全部加工单';
+	// 产能计算器
+	
+		async 		// 跨页面实时同步
+		var syncChannel = new BroadcastChannel('workshop_sync');
+	syncChannel.onmessage = function(e) { if (e.data === 'refresh') loadJobs(); };
+	window.addEventListener('storage', function(e) { if (e.key === 'default_people') loadJobs(); });
+	loadJobs();
+    // Auto-refresh
+
+function autoRefresh(){loadJobs();setTimeout(autoRefresh,2000);}
+	autoRefresh();
+		function showQR(){
+		    var self=this;
+		    fetch('/get_ip').then(function(r){return r.json()}).then(function(d){
+		        var url='http://'+d.ip+':8932/workshop';
+		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
+		        document.getElementById('qrModal').style.display='flex';
+		    }).catch(function(){
+		        var url=window.location.href;
+		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
+		        document.getElementById('qrModal').style.display='flex';
+		    });
+		}
+		function downloadQR(){
+		    var url=window.location.href;
+		    var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
+		}
+		</script>
+		
+	<div class="ov" id="qrModal" style="display:none" onclick="this.style.display='none'"><div class="bx" style="text-align:center" onclick="event.stopPropagation()"><h3 style="margin-bottom:10px">📱 手机端扫码打开</h3><img id="qrImg" src="" style="width:200px;height:200px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin-bottom:10px"><br><button class="btn-s" onclick="downloadQR()">⬇ 下载二维码</button><button onclick="document.getElementById('qrModal').style.display='none'" style="background:#e2e8f0;padding:6px 14px;border:none;border-radius:6px;margin-left:6px;cursor:pointer">关闭</button></div></div>
+		</body></html>

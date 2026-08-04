@@ -1,0 +1,48 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>美国发货汇总</title><style>
+body{font-family:"Microsoft YaHei",sans-serif;padding:24px;max-width:600px;margin:0 auto}
+.file-area{border:2px dashed #3182ce;border-radius:8px;padding:24px;text-align:center;cursor:pointer;margin:10px 0;background:#f7fafc}
+.file-area:hover{background:#ebf4ff}
+button{padding:12px 28px;border:none;border-radius:6px;background:#3182ce;color:#fff;font-size:16px;cursor:pointer}
+button:disabled{background:#cbd5e0;cursor:not-allowed}
+.result{background:#f0fff4;border:1px solid #c6f6d5;border-radius:6px;padding:12px;margin:12px 0;font-size:13px;white-space:pre-wrap;display:none}
+.result.show{display:block}.result.err{background:#fff5f5;border-color:#fed7d7}
+.result.wait{background:#fffbeb;border-color:#fefcbf}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid #e2e8f0;border-top-color:#3182ce;border-radius:50%;animation:s .6s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+</style></head><body>
+<h2>美国发货汇总</h2>
+<p>上传发货单Excel，自动生成汇总。</p>
+<div class="file-area" onclick="document.getElementById('f1').click()">
+<p id="fnText">点击选择Excel文件</p>
+</div>
+<input type="file" id="f1" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]){document.getElementById('fnText').textContent=this.files[0].name;document.getElementById('btn').disabled=false}">
+<button id="btn" onclick="submitForm()" disabled>生成汇总</button>
+<div class="result" id="result"></div>
+<script>
+async function submitForm(){
+var fi=document.getElementById('f1');
+var r=document.getElementById('result');
+if(!fi.files||!fi.files[0])return;
+r.className='result show wait';
+r.innerHTML='<span class=spinner></span> 上传处理中...';
+document.getElementById('btn').disabled=true;
+try{
+var fd=new FormData();
+fd.append('file',fi.files[0]);
+fd.append('action','us');
+var resp=await fetch('/run',{method:'POST',body:fd});
+var d=await resp.json();
+if(d.status==='ok'){
+r.className='result show';
+r.textContent=d.message;
+}else{
+r.className='result show err';
+r.textContent='Error: '+(d.message||'');
+}
+}catch(e){
+r.className='result show err';
+r.textContent='Fail: '+e.message;
+}
+document.getElementById('btn').disabled=false;
+}
+</script></body></html>

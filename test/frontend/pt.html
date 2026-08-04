@@ -1,0 +1,75 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>POST底层测试</title><style>
+body{font-family:"Microsoft YaHei",sans-serif;padding:20px;font-size:14px}
+button{padding:12px 24px;margin:8px;font-size:16px}
+pre{background:#f0f0f0;padding:10px;margin:8px 0}
+</style></head><body>
+<h2>POST底层连通性测试</h2>
+
+<p>测试1: 纯文本POST（不传文件）</p>
+<button onclick="test1()">发送POST /run?q=test</button>
+<pre id="r1">-</pre>
+
+<p>测试2: 使用XMLHttpRequest POST</p>
+<button onclick="test2()">XHR POST /run</button>
+<pre id="r2">-</pre>
+
+<p>测试3: GET (确认连通)</p>
+<button onclick="test3()">GET /health</button>
+<pre id="r3">-</pre>
+
+<hr>
+<p>控制台日志:</p>
+<pre id="log" style="max-height:300px;overflow:auto"></pre>
+
+<script>
+function clog(msg){var l=document.getElementById('log');l.textContent+=msg+'\n';console.log(msg)}
+
+async function test1(){
+    var r=document.getElementById('r1');
+    r.textContent='发送中...';
+    try{
+        var resp=await fetch('/run?q=test',{method:'POST'});
+        clog('test1: status='+resp.status);
+        var t=await resp.text();
+        r.textContent='OK: '+t.substr(0,500);
+    }catch(e){
+        clog('test1 ERROR: '+e.message+' '+e.stack);
+        r.textContent='FAIL: '+e.message;
+    }
+}
+function test2(){
+    var r=document.getElementById('r2');
+    r.textContent='发送中...';
+    try{
+        var xhr=new XMLHttpRequest();
+        xhr.open('POST','/run',true);
+        xhr.onload=function(){
+            clog('test2: status='+xhr.status);
+            r.textContent='OK: '+xhr.status+' '+xhr.responseText.substr(0,500);
+        };
+        xhr.onerror=function(){
+            clog('test2: network error');
+            r.textContent='FAIL: network error';
+        };
+        xhr.send('hello');
+    }catch(e){
+        clog('test2 ERROR: '+e.message);
+        r.textContent='FAIL: '+e.message;
+    }
+}
+async function test3(){
+    var r=document.getElementById('r3');
+    r.textContent='发送中...';
+    try{
+        var resp=await fetch('/health');
+        clog('test3: status='+resp.status);
+        var t=await resp.text();
+        r.textContent='OK: '+t;
+    }catch(e){
+        clog('test3 ERROR: '+e.message);
+        r.textContent='FAIL: '+e.message;
+    }
+}
+clog('页面已加载, 时间: '+new Date().toLocaleTimeString());
+clog('当前URL: '+location.href);
+</script></body></html>

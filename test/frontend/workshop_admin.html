@@ -1,0 +1,181 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>管理后台</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;color:#333;padding:0;max-width:500px;margin:0 auto}
+.hd{background:linear-gradient(135deg,#2d3748,#4a5568);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:10}
+.hd h1{font-size:17px}.hd p{font-size:11px;color:#cbd5e0;margin-top:2px}
+.sel{width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;margin:10px 12px;width:calc(100% - 24px);background:#fff}
+.filter-bar{display:flex;gap:4px;margin:4px 12px 8px}
+.filter-bar button{flex:1;padding:6px;border:1px solid #3182ce;border-radius:6px;font-size:12px;cursor:pointer;background:#fff;color:#3182ce;font-weight:500}
+.filter-bar button.on{background:#e53e3e;border-color:#e53e3e;color:#fff}
+.pri-badge{display:inline-block;background:#e53e3e;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.li{list-style:none;padding:0;margin:0}
+.li li{background:#fff;margin:8px 12px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.li .top{display:flex;align-items:center;padding:10px 12px 6px;gap:8px}
+.li .st{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.li .st.pd{background:#a0aec0}.li .st.pr{background:#d69e2e;animation:bl 1s infinite}
+.li .st.cp{background:#38a169}
+@keyframes bl{50%{opacity:.4}}
+.li .sk{font-size:13px;font-weight:600;flex:1}
+.li .nm{font-size:11px;color:#718096;margin:0 12px 8px}
+.li .qt{font-size:11px;color:#718096;margin:0 12px 2px}
+.li .btns{display:flex;gap:6px;padding:6px 12px 10px}
+.btns button{flex:1;padding:8px;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500}
+.btn-s{background:#3182ce;color:#fff}.btn-c{background:#38a169;color:#fff}.btn-x{background:#e53e3e;color:#fff}.btn-d{background:#e2e8f0;color:#718096;cursor:not-allowed}
+.people-bar{display:flex;align-items:center;gap:4px;margin:-2px 12px 10px;font-size:12px;color:#4a5568}
+.people-bar input{width:56px;padding:3px 6px;border:1px solid #cbd5e0;border-radius:4px;font-size:12px;text-align:center;background:#fff}
+.people-bar input:focus{outline:none;border-color:#3182ce;box-shadow:0 0 0 2px rgba(49,130,206,.15)}
+.ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:50;display:none;align-items:center;justify-content:center}
+.ov .bx{background:#fff;border-radius:12px;padding:20px;width:300px;max-width:90%}
+.ov .bx h3{font-size:15px;margin-bottom:12px}
+.ov .bx input{width:100%;padding:10px;border:2px solid #3182ce;border-radius:8px;font-size:16px;text-align:center;margin-bottom:12px}
+.ov .bx button{padding:8px 20px;border:none;border-radius:6px;font-size:13px;cursor:pointer;margin:0 4px}
+.na{text-align:center;font-size:12px;color:#999;padding:40px 20px}
+.cr{font-size:11px;color:#999;text-align:center;padding:12px;margin-top:8px}
+.bt{font-size:11px;color:#cbd5e0;text-decoration:none}
+    .btn-pri{background:#e53e3e;color:#fff;flex:0!important;padding:8px 10px!important}
+    .btn-pri-off{background:#fff;color:#e53e3e;border:1px solid #e53e3e!important;flex:0!important;padding:7px 9px!important}
+    .btn-xs{background:#3182ce;color:#fff;padding:4px 8px!important;font-size:11px;flex:0!important;border-radius:4px}
+    .progress{height:4px;background:#edf2f7;border-radius:2px;margin:4px 0;overflow:hidden}
+    .progress .bar{height:100%;border-radius:2px;background:linear-gradient(90deg,#d69e2e,#ecc94b);transition:width .5s}
+.del-bar{display:flex;align-items:center;gap:6px;margin:4px 12px 6px;padding:6px 8px;background:#fff;border-radius:6px;font-size:11px;border:1px solid #fed7d7}
+.del-bar label{display:flex;align-items:center;gap:3px;cursor:pointer;color:#4a5568}
+.del-bar label input{cursor:pointer}
+.del-btn{background:#e53e3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer}
+.del-btn:hover{background:#c53030}
+.cb-item{width:14px;height:14px;cursor:pointer;margin-right:4px;flex-shrink:0}</style></head><body>
+	<div class="hd" style="display:flex;align-items:center;gap:10px"><div><h1>🛡 管理后台</h1><p id="batchInfo">全部加工单</p><p id="debugInfo" style="font-size:10px;color:#ff0;text-align:center">加载中...</p></div></div>
+<div class="filter-bar"><button id="af_all" class="on" onclick="setFilter('all')">📋 待处理</button><button id="af_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="af_completed" onclick="setFilter('completed')">✅ 已完成</button><button id="af_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
+<div class="people-bar"><span>👥</span><input id="peopleInput" type="number" min="1" placeholder="人数" onchange="savePeople()"><span style="font-size:11px;color:#999" id="peopleLabel">上班: -</span></div>
+<div style="margin:6px 12px;padding:8px;background:#fff;border-radius:8px;font-size:11px;box-shadow:0 1px 3px rgba(0,0,0,.06)">
+<div style="font-weight:600;font-size:12px;margin-bottom:6px">📦 已上传批次</div>
+<div id="batchList" style="max-height:120px;overflow-y:auto"></div>
+</div>
+<div class="del-bar"><label><input type="checkbox" id="selectAll" onchange="toggleAll()"> 全选</label><button class="del-btn" onclick="deleteSelected()">🗑 删除选中</button><span id="selCount" style="color:#999">0项</span></div>
+<ul class="li" id="jobList"></ul>
+<div class="ov" id="modal"><div class="bx"><h3 id="mTitle">完成加工</h3><p style="font-size:12px;color:#666;margin-bottom:6px" id="mSku"></p><input id="mQty" type="number" placeholder="输入完成数量" min="1" onkeydown="if(event.key==='Enter')confirmComplete()"><button class="btn-s" onclick="confirmComplete()">确定完成</button><button onclick="closeModal()" style="background:#e2e8f0">取消</button></div></div>
+<p class="cr"><a class="bt" href="/workshop">车间页面</a> | <a class="bt" href="/">工作台</a></p>
+<script>
+var curItemId = 0;
+var curFilter = 'all';
+function setFilter(mode){
+    curFilter=mode;
+    document.querySelectorAll('.filter-bar button').forEach(function(b){b.className='';b.style.background='#fff';b.style.color='#3182ce'});
+    var el=document.getElementById('af_'+mode);
+    el.className='on';el.style.background='#e53e3e';el.style.color='#fff';
+    loadJobs();
+}
+async function togglePri(id,pri){
+    var fd=new FormData();fd.append('action','set_priority');fd.append('batch_name',id);fd.append('priority',pri);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok')loadJobs();else alert(d.message);}
+    catch(e){alert(e.message);}
+}
+async function loadJobs(){
+    var ppl=localStorage.getItem('default_people')||'1';
+    var r=await fetch('/workshop_data?people='+ppl);var items=await r.json();
+    var ul=document.getElementById('jobList');ul.innerHTML='';
+    if(!items.length){ul.innerHTML='<div class="na">暂无加工单<br>请先在工作台上传</div>';return}
+    var info=document.getElementById('batchInfo');
+    if(info) info.textContent='全部加工单 ('+items.length+'项)';
+    // 优先订单提醒
+    var priPending=items.filter(function(i){return i.status==='pending' && i.priority==1}).length;
+    var el=document.getElementById('priNotice');
+    if(el){if(priPending>0){el.style.display='block';document.getElementById('priCount').textContent=priPending}else el.style.display='none'}
+    if(curFilter==='all') items=items.filter(function(i){return i.status!=='completed'});
+    if(curFilter==='priority') items=items.filter(function(i){return i.priority==1});
+    if(curFilter==='processing') items=items.filter(function(i){return i.status==='processing'});
+    if(curFilter==='completed') items=items.filter(function(i){return i.status==='completed'});
+    items.forEach(function(i){
+        var li=document.createElement('li');
+        if(i.priority) li.className='pri-item';
+        var statusLabel={pending:'待处理',processing:'加工中',paused:'已暂停',completed:'已完成'};
+        var stClass = i.status;
+            var priBtn = i.priority ? '<button class="btn-pri" onclick="togglePri('+i.id+',0)">★优</button>' : '<button class="btn-pri-off" onclick="togglePri('+i.id+',1)">☆设优</button>';
+            if(i.status==='completed') priBtn='';
+            var btns='';
+                if(i.status==='pending'){btns='<button class="btn-xs" onclick="startJob('+i.id+')">▶ 开始</button>';}
+                else if(i.status==='processing'){btns='<button class="btn-c" onclick="openComplete(this)" data-id="'+i.id+'" data-sku="'+i.sku+'">✔ 完成</button><button class="btn-x" style="background:#d69e2e" onclick="pauseJob('+i.id+')">⏸ 暂停</button><button class="btn-x" onclick="cancelJob('+i.id+')">✖ 取消</button>';}
+                else{btns='<button class="btn-d">✔ 已完</button>';}
+                var info='<div class="qt">数量: '+i.qty+'</div>';
+                if(i.est_hours) info+='<div class="qt" style="color:#718096">⏱ 约 '+i.est_hours+'h</div>';
+                if(i.status==='processing' && i.worker) info+='<div class="qt">工人: '+i.worker+' | '+i.started.substr(11,5)+'</div>';
+                if(i.status==='processing') info+='<div class="qt" style="color:#d69e2e">⏱ '+(i.est_time?'预计完成：<b>'+i.est_time+'</b> (~'+i.est_min+'分钟)':'暂无数据')+'</div>';
+                if(i.status==='processing' && i.started && i.est_min>0){
+                    var stTime=new Date(i.started).getTime();
+                    var elMin=(Date.now()-stTime)/60000;
+                    var pct=Math.min(100,Math.round(elMin/i.est_min*100));
+                info+='<div class="progress"><div class="bar" style="width:'+Math.max(3,pct)+'%"></div></div>';
+            }
+            if(i.status==='completed' && i.done_qty) info+='<div class="qt">完成: '+i.done_qty+'件 | '+i.completed.substr(11,5)+'</div>';
+            var priBadge = i.priority ? '<span class="pri-badge">⭐优先</span>' : '';
+            var jobNoHtml2 = i.job_number ? '<span style="font-size:10px;color:#718096">#'+i.job_number+' </span>' : '';
+            li.innerHTML='<div class="top"><input type="checkbox" class="cb-item" data-id="'+i.id+'" onchange="updateSelCount()"><span class="st '+stClass+'"></span>'+jobNoHtml2+'<span class="sk">'+i.sku+priBadge+'</span><span style="font-size:10px;color:#999">'+statusLabel[i.status]+'</span></div>'+'<div class="nm">'+(i.name||'')+'</div>'+info+'<div class="btns">'+priBtn+btns+'</div>';
+        ul.appendChild(li);
+    });
+}
+async function startJob(id){
+    var ppl=document.getElementById('peopleInput')?document.getElementById('peopleInput').value:'';
+    if(!ppl||parseInt(ppl)<1)ppl='1';
+    localStorage.setItem('default_people',ppl);
+    var wn='车间工人 x'+ppl;
+    var fd=new FormData();fd.append('action','start_job');fd.append('batch_name',id);fd.append('worker',wn);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+function savePeople(){
+    var v=document.getElementById('peopleInput').value;
+    if(v&&parseInt(v)>=1){localStorage.setItem('default_people',v);document.getElementById('peopleLabel').textContent='上班: '+v+'人';}
+    
+}
+async function cancelJob(id){
+    if(!confirm('确定取消此加工任务？'))return;
+    var fd=new FormData();fd.append('action','cancel_job');fd.append('batch_name',id);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert("❌ "+e.message);}
+}
+function toggleAll(){
+    var checked=document.getElementById('selectAll').checked;
+    document.querySelectorAll('.cb-item').forEach(function(c){c.checked=checked;});
+    updateSelCount();
+    }catch(e){document.getElementById('batchInfo').textContent='❌ 加载失败: '+e.message;console.error(e);}
+}
+function updateSelCount(){
+    var n=document.querySelectorAll('.cb-item:checked').length;
+    document.getElementById('selCount').textContent=n+'项';
+}
+async function deleteSelected(){
+    var ids=[];
+    document.querySelectorAll('.cb-item:checked').forEach(function(c){ids.push(c.getAttribute('data-id'));});
+    if(!ids.length){alert('请先选择要删除的项');return;}
+    if(!confirm('确定删除选中的 '+ids.length+' 项？此操作不可撤销！'))return;
+    var fd=new FormData();fd.append('action','delete_jobs');fd.append('ids',ids.join(','));
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert(d.message);loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+function openComplete(btn){curItemId=btn.dataset.id;document.getElementById('mSku').textContent=btn.dataset.sku;document.getElementById('mQty').value='';document.getElementById('modal').style.display='flex';}
+function closeModal(){document.getElementById('modal').style.display='none';}
+async function confirmComplete(){
+    var qty=document.getElementById('mQty').value;
+    if(!qty||parseInt(qty)<=0){alert('请输入有效数量');return}
+    var fd=new FormData();fd.append('action','complete_job');fd.append('batch_name',curItemId);fd.append('done_qty',qty);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();closeModal();if(d.status==='ok'){alert(d.message);loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+var savedPpl=localStorage.getItem('default_people');if(savedPpl){document.getElementById('peopleInput').value=savedPpl;document.getElementById('peopleLabel').textContent='上班: '+savedPpl+'人';}
+document.getElementById('batchInfo').textContent='全部加工单';
+loadJobs();
+// Batch list
+function loadBatchList(){
+    fetch('/job_batches').then(function(r){return r.json()}).then(function(bs){
+        var div=document.getElementById('batchList');
+        if(!div)return;
+        var h='';
+        bs.forEach(function(b){h+='<div style=\"padding:2px 0;border-bottom:1px solid #eee;display:flex;justify-content:space-between\"><span>'+b.name+'</span><span style=\"color:#999\">'+b.count+'项</span></div>';});
+        div.innerHTML=h||'<span style=\"color:#999\">暂无批次</span>';
+    }).catch(function(){});
+}
+loadBatchList();
+// Auto-refresh every 10s to sync with workshop
+
+function autoRefresh(){loadJobs();loadBatchList();setTimeout(autoRefresh,3000);}
+autoRefresh();
+    </script></body></html>

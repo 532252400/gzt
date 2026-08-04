@@ -1,0 +1,153 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>工厂工作台</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#edf2f7;color:#1a202c;min-height:100vh}
+/* 顶部导航栏 */
+.tb{background:linear-gradient(135deg,#1a202c,#2d3748);color:#fff;padding:0 32px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+.tb .logo{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+.tb .logo span{font-size:12px;font-weight:400;color:#a0aec0;margin-left:4px}
+.tb .nav{display:flex;gap:4px}
+.tb .nav a{padding:7px 14px;border-radius:6px;color:#cbd5e0;text-decoration:none;font-size:12px;transition:.15s}
+.tb .nav a:hover{background:rgba(255,255,255,.1);color:#fff}
+/* 指标卡片 */
+.mr{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:22px 32px 0;max-width:1400px;margin:0 auto}
+.mc{background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);display:flex;align-items:center;gap:14px}
+.mc .mi{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.mc .mv{flex:1}
+.mc .mn{font-size:22px;font-weight:700;line-height:1.2}
+.mc .ml{font-size:11px;color:#718096;line-height:1.2;margin-top:1px}
+/* 分类筛选 */
+.cf{display:flex;gap:6px;padding:18px 32px 0;max-width:1400px;margin:0 auto}
+.cf span{padding:6px 16px;border-radius:20px;font-size:12px;cursor:pointer;background:#fff;color:#4a5568;border:1px solid #e2e8f0;transition:.15s;user-select:none}
+.cf span:hover{border-color:#3182ce;color:#3182ce}
+.cf span.act{background:#3182ce;color:#fff;border-color:#3182ce}
+/* 卡片网格 */
+.gr{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:18px 32px 32px;max-width:1400px;margin:0 auto}
+.cd{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden;transition:box-shadow .2s,transform .2s}
+.cd:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-2px)}
+.ch{padding:14px 18px 10px;border-bottom:1px solid #edf2f7;display:flex;align-items:center;gap:8px}
+.ch .ico{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex-shrink:0}
+.ch h2{font-size:14px;font-weight:600;color:#2d3748}
+.tg{font-size:10px;padding:2px 8px;border-radius:3px;margin-left:auto;white-space:nowrap;font-weight:500}
+.tg0{background:#ebf4ff;color:#3182ce}.tg1{background:#f0fff4;color:#38a169}.tg2{background:#fffbeb;color:#d69e2e}
+.tg3{background:#f5f0ff;color:#7c3aed}.tg4{background:#fff5f5;color:#e53e3e}.tg5{background:#edf2f7;color:#4a5568}
+.cb{padding:14px 18px 18px}
+.cb p{font-size:12px;color:#718096;margin-bottom:10px;line-height:1.5}
+.fd{border:2px dashed #e2e8f0;border-radius:8px;padding:14px;text-align:center;color:#718096;font-size:12px;cursor:pointer;margin-bottom:8px;transition:.15s}
+.fd:hover{border-color:#3182ce;background:#f7fafc;color:#3182ce}
+.btn{padding:7px 18px;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;transition:.15s}
+.bp{background:#3182ce;color:#fff}.bs{background:#38a169;color:#fff}.bo{background:#d69e2e;color:#fff}.bm{background:#5a67d8;color:#fff}
+.btn:disabled{background:#cbd5e0;color:#a0aec0;cursor:not-allowed}.btn:hover:not(:disabled){filter:brightness(1.1)}
+.rs{margin-top:10px;padding:10px;border-radius:6px;font-size:12px;line-height:1.6;white-space:pre-wrap;display:none;max-height:300px;overflow-y:auto}
+.rs.ok{background:#f0fff4;border:1px solid #c6f6d5;color:#276749;display:block}.rs.er{background:#fff5f5;border:1px solid #fed7d7;color:#9b2c2c;display:block}.rs.wa{background:#fffbeb;border:1px solid #fefcbf;color:#975a16;display:block}
+.ld{display:inline-block;width:12px;height:12px;border:2px solid #e2e8f0;border-top-color:#3182ce;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:3px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hd{display:none}.ti{width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;margin-bottom:8px;box-sizing:border-box;transition:.15s}
+.ti:focus{outline:none;border-color:#3182ce;box-shadow:0 0 0 3px rgba(49,130,206,.15)}
+.tag-item{display:inline-block;font-size:10px;padding:2px 7px;border-radius:3px;margin:2px;background:#edf2f7;color:#4a5568}
+.tt{white-space:pre-wrap;word-break:break-all}.a{color:#3182ce;text-decoration:none;font-size:12px}.a:hover{text-decoration:underline}
+/* 响应式 */
+@media(max-width:768px){.tb{padding:0 16px}.tb .logo{font-size:15px}.tb .nav a{padding:5px 10px;font-size:11px}
+.mr{grid-template-columns:repeat(2,1fr);padding:16px 16px 0}.cf{padding:14px 16px 0;flex-wrap:wrap}
+.gr{grid-template-columns:1fr;padding:14px 16px 24px}}
+.cd.hide{display:none}
+</style></head><body>
+<div id="diagBanner" style="background:#ffc107;color:#333;text-align:center;padding:4px;font-size:12px;display:none"></div>
+<div class="tb"><div class="logo">🔧 工厂工作台<span>v3.1</span></div><div class="nav"><a href="/scan">📱 扫码</a><a href="/scan_admin">📊 管理</a><a href="/scan_history_page">📜 历史</a></div></div>
+
+<div class="mr"><a class="mc" href="/workshop_board" style="text-decoration:none;color:inherit"><div class="mi" style="background:#ebf4ff;color:#3182ce">📋</div><div class="mv"><div class="mn" id="wsPending">-</div><div class="ml">待处理</div></div></a>
+<a class="mc" href="/workshop_board?filter=processing" style="text-decoration:none;color:inherit"><div class="mi" style="background:#fff5f5;color:#d69e2e">🔧</div><div class="mv"><div class="mn" id="wsProcessing">-</div><div class="ml">加工中</div></div></a>
+<a class="mc" href="/workshop_board?filter=today" style="text-decoration:none;color:inherit"><div class="mi" style="background:#f0fff4;color:#38a169">✅</div><div class="mv"><div class="mn" id="wsToday">-</div><div class="ml">今日完成</div></div></a>
+<a class="mc" href="/workshop_board?filter=priority" style="text-decoration:none;color:inherit"><div class="mi" style="background:#fff5f5;color:#e53e3e">⭐</div><div class="mv"><div class="mn" id="wsPriority">-</div><div class="ml">优先</div></div></a></div>
+
+<div class="cf" id="catFilter"><span class="act" data-cat="all">全部</span><span data-cat="label">🏷 标签</span><span data-cat="ship">📦 发货</span><span data-cat="tool">🔧 数据</span><span data-cat="scan">📱 扫码</span></div>
+
+<div class="gr" id="cardGrid">
+
+<div class="cd" data-cat="scan"><div class="ch"><div class="ico" style="background:#d69e2e">🔧</div><h2>车间加工</h2><span class="tg2">新</span></div><div class="cb"><p>上传加工单Excel，车间工人手机查看列表、开始/完成加工。Excel格式：L列=SKU、J列=组合商品品名、O列=加工/拆分数量。</p><div class="fd" onclick="f('f9')"><span id="t9">📄 上传加工单Excel</span></div><input type="file" id="f9" accept=".xlsx" class="hd" onchange="fs('f9','t9','b9')"><input class="ti" id="batchName2" placeholder="加工单名称（如 7-7美国）"><button class="btn bo" id="b9" onclick="uploadJobs()" disabled>📤 上传加工单</button><div class="rs" id="r9"></div><p style="font-size:12px;margin-top:8px">📋 <a class="a" href="/workshop" target="_blank">列表模式</a> &nbsp; 🖥 <a class="a" href="/workshop_board" target="_blank">看板模式</a> &nbsp; 📊 <a class="a" href="/workshop_admin" target="_blank">管理后台</a></p></div></div>
+<div class="cd" data-cat="label"><div class="ch"><div class="ico" style="background:#3182ce">🏷</div><h2>100×100 打印标签</h2><span class="tg0">手机壳</span></div><div class="cb"><p>上传手机壳装箱Excel，生成10×10cm打印标签。</p><div class="fd" onclick="f('f1')"><span id="t1">📄 点击选择 Excel 文件</span></div><input type="file" id="f1" accept=".xlsx" class="hd" onchange="fs('f1','t1','b1')"><button class="btn bp" id="b1" onclick="go('lbl100')" disabled>生成标签</button><div class="rs" id="r1"></div></div></div>
+
+<div class="cd" data-cat="label"><div class="ch"><div class="ico" style="background:#38a169">📜</div><h2>100×30 提货标签</h2><span class="tg1">司机信息</span></div><div class="cb"><p>上传司机提货信息Excel，1列=标签。</p><div class="fd" onclick="f('f2')"><span id="t2">📄 选择 Excel 文件</span></div><input type="file" id="f2" accept=".xlsx" class="hd" onchange="fs('f2','t2','b2')"><button class="btn bp" id="b2" onclick="go('lbl30')" disabled>生成标签</button><div class="rs" id="r2"></div></div></div>
+
+<div class="cd" data-cat="ship"><div class="ch"><div class="ico" style="background:#d69e2e">📊</div><h2>美国发货汇总</h2><span class="tg2">分组小计</span></div><div class="cb"><p>上传发货单Excel，生成分组汇总表。</p><div class="fd" onclick="f('f3')"><span id="t3">📄 选择 Excel 文件</span></div><input type="file" id="f3" accept=".xlsx" class="hd" onchange="fs('f3','t3','b3')"><button class="btn bp" id="b3" onclick="go('us')" disabled>生成汇总</button><div class="rs" id="r3"></div></div></div>
+
+<div class="cd" data-cat="ship"><div class="ch"><div class="ico" style="background:#3182ce">📊</div><h2>加拿大发货汇总</h2><span class="tg0">直接清单</span></div><div class="cb"><p>上传发货单Excel，1列直接清单。</p><div class="fd" onclick="f('f4')"><span id="t4">📄 选择 Excel 文件</span></div><input type="file" id="f4" accept=".xlsx" class="hd" onchange="fs('f4','t4','b4')"><button class="btn bp" id="b4" onclick="go('ca')" disabled>生成汇总</button><div class="rs" id="r4"></div></div></div>
+
+<div class="cd" data-cat="tool"><div class="ch"><div class="ico" style="background:#e53e3e">✅</div><h2>收货单据核对</h2><span class="tg4">对数据</span></div><div class="cb"><p>上传 Receiving Record，核对通知收货 vs 到货。</p><div class="fd" onclick="f('f5')"><span id="t5">📄 选择 Excel 文件</span></div><input type="file" id="f5" accept=".xlsx" class="hd" onchange="fs('f5','t5','b5')"><button class="btn bp" id="b5" onclick="go('rc')" disabled>开始核对</button><div class="rs" id="r5"></div></div></div>
+
+<div class="cd" data-cat="tool"><div class="ch"><div class="ico" style="background:#7c3aed">📦</div><h2>物流追踪</h2><span class="tg3">自动识别</span></div><div class="cb"><p>输入物流单号，自动识别快递公司并查询。</p><input class="ti" id="trackNum" placeholder="输入物流单号" onkeydown="if(event.key==='Enter')track()"><div style="margin-bottom:8px"><span class="tag-item">SF-顺丰</span><span class="tag-item">YT-圆通</span><span class="tag-item">ST-申通</span><span class="tag-item">ZT-中通</span><span class="tag-item">YD-韵达</span><span class="tag-item">JT-极兔</span><span class="tag-item">JD-京东</span></div><button class="btn bo" id="trackBtn" onclick="track()">🔍 查询物流</button><div class="rs tt" id="r6"></div></div></div>
+
+<div class="cd" data-cat="tool"><div class="ch"><div class="ico" style="background:#38a169">🔍</div><h2>数据问答</h2><span class="tg1">随便问</span></div><div class="cb"><p>输入你想查的问题，比如「全部SKU」、PW-MSG16-001、10人1000套做多久。</p><input class="ti" id="qt" placeholder="输入问题..." onkeydown="if(event.key==='Enter')qq()"><button class="btn bs" onclick="qq()">🔍 查询</button><div class="rs tt" id="r7"></div></div></div>
+
+<div class="cd" data-cat="scan"><div class="ch"><div class="ico" style="background:#5a67d8">📱</div><h2>扫码核对</h2><span class="tg5">新</span></div><div class="cb"><p>上传发货Excel作为批次数据，工人手机扫码验收。支持按区域分开扫码。</p><div class="fd" onclick="f('f8')"><span id="t8">📄 上传发货Excel作为批次数据</span></div><input type="file" id="f8" accept=".xlsx" class="hd" onchange="fs('f8','t8','b8')"><input class="ti" id="batchName" placeholder="批次名称（如 7-7美国发货）"><button class="btn bm" id="b8" onclick="uploadBatch()" disabled>📤 上传批次</button><div class="rs" id="r8"></div><p style="font-size:12px;margin-top:8px">📋 <a class="a" href="/scan" target="_blank">扫码页面</a> &nbsp; 📊 <a class="a" href="/scan_admin" target="_blank">管理后台</a></p></div></div>
+
+</div>
+<script>
+function f(id){document.getElementById(id).click()}
+function fs(fid,tid,bid){document.getElementById(tid).textContent='📄 '+document.getElementById(fid).files[0].name;document.getElementById(bid).disabled=false}
+function s(id,c,m){var r=document.getElementById(id);r.className='rs '+c;r.style.display='block';r.textContent=m}
+async function go(a){
+    var m={lbl100:{f:'f1',b:'b1',r:'r1'},lbl30:{f:'f2',b:'b2',r:'r2'},us:{f:'f3',b:'b3',r:'r3'},ca:{f:'f4',b:'b4',r:'r4'},rc:{f:'f5',b:'b5',r:'r5'}}[a];
+    var fi=document.getElementById(m.f),btn=document.getElementById(m.b),res=document.getElementById(m.r);
+    if(!fi||!btn||!res) return;
+    if(!fi.files||!fi.files[0]) return;
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s(res,'wa','⏳...');
+    var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action',a);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s(res,d.status==='ok'?'ok':'er',d.status==='ok'?d.message:'❌ '+d.message)}
+    catch(e){s(res,'er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent=a==='rc'?'开始核对':(a==='us'||a==='ca'?'生成汇总':'生成标签');
+}
+async function uploadBatch(){
+    var fi=document.getElementById('f8'),btn=document.getElementById('b8'),nm=document.getElementById('batchName').value.trim()||'批次'+new Date().toLocaleDateString();
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s('r8','wa','⏳加载中...');
+    var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','shipment');fd.append('batch_name',nm);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s('r8',d.status==='ok'?'ok':'er',d.message);if(d.status==='ok')loadMetrics()}
+    catch(e){s('r8','er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent='📤 上传批次';
+}
+async function uploadJobs(){
+    var fi=document.getElementById('f9'),btn=document.getElementById('b9'),nm=document.getElementById('batchName2').value.trim()||'加工单'+new Date().toLocaleDateString();
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s('r9','wa','⏳...');
+    var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','import_jobs');fd.append('batch_name',nm);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s('r9',d.status==='ok'?'ok':'er',d.message);if(d.status==='ok')loadMetrics()}
+    catch(e){s('r9','er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent='📤 上传加工单';
+}
+async function track(){
+    var num=document.getElementById('trackNum').value.trim(),btn=document.getElementById('trackBtn');
+    if(!num){s('r6','er','❌ 输入单号');return}
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s('r6','wa','⏳...');
+    try{var r=await fetch('/track?num='+encodeURIComponent(num));var d=await r.json();s('r6',d.status==='ok'?'ok':'er',d.message)}
+    catch(e){s('r6','er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent='🔍 查询物流';
+}
+async function qq(){
+    var t=document.getElementById('qt').value;
+    if(!t){s('r7','er','❌ 输入问题');return}s('r7','wa','⏳...');
+    try{var r=await fetch('/q?q='+encodeURIComponent(t));var d=await r.json();s('r7',d.status==='ok'?'ok':'er',d.message)}
+    catch(e){s('r7','er','❌ '+e.message)}
+}
+// 分类筛选
+document.querySelectorAll('#catFilter span').forEach(function(el){
+    el.addEventListener('click',function(){
+        document.querySelectorAll('#catFilter span').forEach(function(s){s.classList.remove('act')});
+        this.classList.add('act');
+        var cat=this.getAttribute('data-cat');
+        document.querySelectorAll('#cardGrid .cd').forEach(function(c){c.classList.toggle('hide',cat!=='all' && c.getAttribute('data-cat')!==cat)});
+    });
+});
+// 指标数据
+async function loadMetrics(){
+    try{var r=await fetch('/workshop_data');var items=await r.json();
+        var pending=items.filter(function(i){return i.status==='pending'}).length;
+        var processing=items.filter(function(i){return i.status==='processing'}).length;
+        var todayStr=new Date();todayStr=todayStr.getFullYear()+'-'+(todayStr.getMonth()+1).toString().padStart(2,'0')+'-'+todayStr.getDate().toString().padStart(2,'0');
+        var today=items.filter(function(i){return i.status==='completed' && i.completed && i.completed.substr(0,10)===todayStr}).length;
+        var priority=items.filter(function(i){return i.priority==1}).length;
+        document.getElementById('wsPending').textContent=pending;
+        document.getElementById('wsProcessing').textContent=processing;
+        document.getElementById('wsToday').textContent=today;
+        document.getElementById('wsPriority').textContent=priority;
+    }catch(e){}
+}
+loadMetrics();
+</script></body></html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>POST诊断</title><style>
+body{font-family:"Microsoft YaHei",sans-serif;padding:30px;max-width:600px;margin:0 auto}
+button{padding:10px 20px;margin:5px;font-size:14px;cursor:pointer}
+pre{background:#f5f5f5;padding:10px;border-radius:4px;font-size:12px;max-height:300px;overflow:auto}
+input{margin:5px 0}
+</style></head><body>
+<h2>POST诊断工具</h2>
+<p>此页用于独立测试后端POST功能，与主页逻辑完全隔离。</p>
+
+<h3>1. 选文件测试 us</h3>
+<input type="file" id="f1"><br>
+<button onclick="doPost('us')">POST /run action=us</button>
+<pre id="r1">等待点击...</pre>
+
+<h3>2. 无文件POST</h3>
+<button onclick="doPostNoFile('us')">POST /run (无文件)</button>
+<pre id="r2">等待点击...</pre>
+
+<h3>3. GET测试</h3>
+<button onclick="doGet()">GET /health</button>
+<pre id="r3">等待点击...</pre>
+
+<script>
+async function doPost(action){
+    var fi=document.getElementById('f1');
+    var r=document.getElementById('r1');
+    if(!fi.files[0]){r.textContent='请先选文件';return}
+    r.textContent='发送中...';
+    try{
+        var fd=new FormData();
+        fd.append('file',fi.files[0]);
+        fd.append('action',action);
+        var t0=Date.now();
+        var resp=await fetch('/run',{method:'POST',body:fd});
+        var t1=Date.now();
+        var d=await resp.json();
+        r.textContent='OK ('+(t1-t0)+'ms): '+JSON.stringify(d,null,2);
+    }catch(e){
+        r.textContent='FAIL: '+e.message+'\n'+e.stack;
+    }
+}
+async function doPostNoFile(action){
+    var r=document.getElementById('r2');
+    r.textContent='发送中...';
+    try{
+        var fd=new FormData();
+        fd.append('action',action);
+        var t0=Date.now();
+        var resp=await fetch('/run',{method:'POST',body:fd});
+        var t1=Date.now();
+        var d=await resp.json();
+        r.textContent='OK ('+(t1-t0)+'ms): '+JSON.stringify(d,null,2);
+    }catch(e){
+        r.textContent='FAIL: '+e.message+'\n'+e.stack;
+    }
+}
+async function doGet(){
+    var r=document.getElementById('r3');
+    r.textContent='发送中...';
+    try{
+        var t0=Date.now();
+        var resp=await fetch('/health');
+        var t1=Date.now();
+        var d=await resp.json();
+        r.textContent='OK ('+(t1-t0)+'ms): '+JSON.stringify(d,null,2);
+    }catch(e){
+        r.textContent='FAIL: '+e.message+'\n'+e.stack;
+    }
+}
+</script></body></html>

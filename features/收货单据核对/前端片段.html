@@ -1,0 +1,17 @@
+<!-- 收货单据核对 - 前端卡片 -->
+<div class="cd" data-cat="tool">
+  <div class="ch">
+    <div class="ico" style="background:#e53e3e">✅</div>
+    <h2>收货单据核对</h2>
+    <span class="tg4">对数据</span>
+  </div>
+  <div class="cb">
+    <p>上传 Receiving Record，核对通知收货 vs 到货。</p>
+    <div class="fd" onclick="f('f5')">
+      <span id="t5">📄 选择 Excel 文件</span>
+    </div>
+    <input type="file" id="f5" accept=".xlsx" class="hd" onchange="fs('f5','t5','b5')">
+    <button class="btn bp" id="b5" onclick="go('rc')" disabled>开始核对</button>
+    <div class="rs" id="r5"></div>
+  </div>
+</div>

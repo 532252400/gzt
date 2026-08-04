@@ -1,0 +1,86 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>扫码管理</title><style>
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;color:#333;padding:20px;max-width:1200px;margin:0 auto}
+h1{font-size:20px;margin-bottom:12px}
+.st{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.st>div{background:#fff;border-radius:8px;padding:12px;text-align:center}
+.st .n{font-size:24px;font-weight:bold}.st .l{font-size:11px;color:#999;margin-top:2px}
+.rt{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px}
+.rt>div{background:#fff;border-radius:6px;padding:8px;text-align:center;font-size:11px;cursor:pointer;border:2px solid transparent}
+.rt>div:hover{border-color:#1a73e8}.rt>div.sel{border-color:#1a73e8;background:#e8f0fe}
+.rt .rn{font-size:14px;font-weight:bold;color:#1a73e8}
+.sel2{width:100%;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:12px;margin-bottom:12px}
+.t{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:11px}
+.t th,.t td{padding:5px 6px;border:1px solid #ddd;text-align:left}
+.t th{background:#1a73e8;color:#fff;white-space:nowrap;position:sticky;top:0}
+.g{color:#34a853;font-weight:bold}.r{color:#ea4335;font-weight:bold}
+.h2{font-size:14px;margin:10px 0 6px;display:flex;align-items:center;gap:6px}
+.h2 .tag{padding:2px 8px;border-radius:3px;color:#fff;font-size:10px}
+.ex{background:#fff;border-radius:6px;padding:8px;font-size:11px;margin-bottom:12px;max-height:200px;overflow-y:auto}
+</style></head><body>
+<h1>📊 扫码管理后台</h1>
+<select class="sel2" id="batchSel" onchange="load()"></select>
+<div class="rt" id="regionTabs"></div>
+<div class="st" id="stats"></div>
+<div style="display:flex;gap:20px;flex-wrap:wrap">
+<div style="flex:1;min-width:300px"><h2 class="h2">未扫码项</h2><div class="ex" id="unscanned"></div></div>
+<div style="flex:2;min-width:400px"><h2 class="h2">扫描记录</h2><div id="history" style="overflow-x:auto"></div></div>
+</div>
+<p style="font-size:12px;margin-top:10px"><a href="/scan">📱 扫码页面</a> | <a href="/">← 工作台</a></p>
+<script>
+var curRegion='';
+async function load(){
+    var bid=document.getElementById('batchSel').value;
+    var r=await fetch('/scan_stats?batch='+bid+'&region='+curRegion);var d=await r.json();
+    var statsDiv=document.getElementById('stats');
+    var pct=d.total>0?Math.round(d.scanned/d.total*100):0;
+    var boxPct = d.total_expected_boxes>0 ? Math.round(d.scanned_correct_boxes/d.total_expected_boxes*100) : 0;
+    statsDiv.innerHTML='<div><div class="n">'+d.total+'</div><div class="l">总单</div></div>'+
+        '<div><div class="n">'+d.scanned+'</div><div class="l">已扫 '+pct+'%</div></div>'+
+        '<div><div class="n g">'+d.correct+'</div><div class="l">正确</div></div>'+
+        '<div><div class="n r">'+d.wrong+'</div><div class="l">异常</div></div>'+
+        '<div><div class="n" style="color:#3949ab">'+d.corrections+'</div><div class="l">更正</div></div>'+
+        '<div><div style="font-size:16px;font-weight:bold;color:#555">'+d.scanned_correct_boxes+'/'+d.total_expected_boxes+'箱</div><div class="l">箱数校验 '+boxPct+'%</div></div>';
+    var un='';    var un='';d.unscanned.forEach(i=>{un+=i[0].substring(0,12)+' | '+i[1]+' | '+i[2]+'\u7bb1 | '+i[5]+'<br>'});
+    document.getElementById('unscanned').innerHTML=un||'<span style="color:#999">\u5168\u90e8\u5df2\u626b \u2705</span>';
+    var h='<table class="t"><tr><th>\u8d27\u4ef6\u5355\u53f7</th><th>\u5de5\u4eba</th><th>\u7ed3\u679c</th><th>\u7bb1\u6570</th><th>\u533a\u57df</th><th>\u5907\u6ce8</th><th>\u65f6\u95f4</th></tr>';
+    d.scans.forEach(s=>{h+='<tr><td>'+(s[0]||'').substring(0,12)+'</td><td>'+(s[1]||'')+'</td><td class="'+(s[2]=='correct'?'g':'r')+'">'+(s[2]=='correct'?'\u2713':'\u2717')+'</td><td>'+(s[3]||'')+'</td><td>'+(s[5]||'')+'</td><td>'+(s[6]||'')+'</td><td>'+(s[4]||'').substr(11,8)+'</td></tr>'});
+    h+='</table>';document.getElementById('history').innerHTML=h;
+    // 状态标识
+    var sb=document.getElementById('statusBadge'),cb=document.getElementById('completeBtn');
+    if(d.batch && d.batch[4]){
+        sb.style.display='inline-block';
+        if(d.batch[4]=='complete'){sb.textContent='✅ 已完成';sb.style.background='#e6f4ea';sb.style.color='#188038';cb.style.display='none';}
+        else{sb.textContent='⏳ 扫描中';sb.style.background='#fef7e0';sb.style.color='#ea8600';cb.style.display='inline-block';}
+    }
+}
+async function markComplete(){
+    var bid=document.getElementById('batchSel').value;
+    if(!confirm('确认标记此批次为完成？'))return;
+    var fd=new FormData();fd.append('action','complete');fd.append('batch_name',bid);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');load();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+// 加载批次和区域
+fetch('/scan_batches').then(r=>r.json()).then(bs=>{
+    var sel=document.getElementById('batchSel');
+    bs.forEach(b=>{var o=document.createElement('option');o.value=b[0];o.textContent=b[1]+'('+b[3]+'项)';sel.appendChild(o)});
+    // 加载区域页签
+    if(bs.length>0){
+        fetch('/scan_info?batch='+bs[0][0]).then(r=>r.json()).then(d=>{
+            var tabs=document.getElementById('regionTabs');
+            var allDiv=document.createElement('div');
+            allDiv.innerHTML='<div class="rn">全部</div>全部区域';allDiv.onclick=function(){curRegion='';document.querySelectorAll('.rt>div').forEach(el=>el.classList.remove('sel'));this.classList.add('sel');load();};
+            tabs.appendChild(allDiv);
+            d.regions.forEach(function(rg){
+                var rs=d.region_stats[rg]||{total:0,scanned:0};
+                var div=document.createElement('div');
+                div.innerHTML='<div class="rn">'+rg+'</div>'+rs.total+'项·已扫'+rs.scanned;
+                div.onclick=function(){curRegion=rg;document.querySelectorAll('.rt>div').forEach(el=>el.classList.remove('sel'));this.classList.add('sel');load();};
+                tabs.appendChild(div);
+            });
+            allDiv.classList.add('sel');
+            load();
+        });
+    }
+});
+</script></body></html>

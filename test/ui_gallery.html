@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>10 种 UI 风格展示</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#111;color:#fff;padding:30px}
+h1{text-align:center;font-size:32px;margin-bottom:8px;background:linear-gradient(90deg,#f7971e,#ffd200);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{text-align:center;color:#888;margin-bottom:40px;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:30px;max-width:1500px;margin:0 auto}
+.card{background:#1a1a1a;border-radius:16px;overflow:hidden;border:1px solid #333;transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.card-header{padding:14px 20px;display:flex;justify-content:space-between;align-items:center}
+.card-header span{font-size:13px;opacity:.6}
+.card-body{height:340px;position:relative;overflow:hidden}
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;background:#333;color:#aaa}
+/* ============= STYLE 1: Material ============= */
+.style1{background:#fff;color:#333;font-family:Roboto,"Microsoft YaHei",sans-serif;padding:20px}
+.style1 .appbar{background:#1565c0;color:#fff;padding:12px 16px;border-radius:8px;display:flex;justify-content:space-between;margin-bottom:16px;font-size:14px;font-weight:500}
+.style1 .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.style1 .card1{background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.12);border:1px solid #eee}
+.style1 .card1 .ico{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:8px}
+.style1 .card1 .t{font-size:13px;font-weight:500;margin-bottom:4px}
+.style1 .card1 .s{font-size:11px;color:#888}
+.style1 .fab{position:absolute;right:30px;bottom:30px;width:50px;height:50px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 12px rgba(21,101,192,.4)}
+
+/* ============= STYLE 2: Ant Design ============= */
+.style2{display:flex;height:100%;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+.style2 .sidebar{width:70px;background:#001529;display:flex;flex-direction:column;align-items:center;padding-top:12px}
+.style2 .sidebar div{width:40px;height:40px;border-radius:8px;margin-bottom:6px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.65);font-size:16px;cursor:pointer}
+.style2 .sidebar .act{background:#1890ff;color:#fff}
+.style2 .content{flex:1;padding:14px}
+.style2 .topbar{display:flex;justify-content:space-between;margin-bottom:12px;font-size:12px;color:#555}
+.style2 .table{background:#fff;border-radius:8px;padding:10px}
+.style2 .table .row{display:flex;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:11px;color:#555}
+.style2 .table .row:first-child{color:#333;font-weight:600}
+.style2 .table .row span{flex:1}
+.style2 .btn{background:#1890ff;color:#fff;border:none;border-radius:4px;padding:6px 16px;font-size:12px;margin-top:10px}
+
+/* ============= STYLE 3: Dark Cyber ============= */
+.style3{height:100%;background:#0a0e17;color:#e0e6f0;padding:16px;font-family:'Segoe UI',sans-serif;position:relative;overflow:hidden}
+.style3::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#0ff,#f0f,#0ff)}
+.style3 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(0,255,255,.15)}
+.style3 .header h3{font-size:15px;color:#0ff;text-shadow:0 0 20px rgba(0,255,255,.3)}
+.style3 .stat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.style3 .stat-box{border:1px solid rgba(0,255,255,.2);border-radius:8px;padding:10px;background:rgba(0,255,255,.03)}
+.style3 .stat-box .n{font-size:20px;color:#0ff;font-weight:700}
+.style3 .stat-box .l{font-size:10px;color:#6b7a8f}
+.style3 .list-item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
+.style3 .list-item .s{color:#0ff;font-size:10px}
+.style3 .scan-btn{position:absolute;bottom:20px;left:20px;right:20px;padding:10px;background:linear-gradient(90deg,#0ff,#f0f);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:13px;text-shadow:0 0 10px rgba(0,0,0,.5)}
+
+/* ============= STYLE 4: MacOS Glass ============= */
+.style4{height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);padding:20px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;position:relative}
+.style4 .glass{background:rgba(255,255,255,.12);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;border:1px solid rgba(255,255,255,.18);padding:16px;height:100%;display:flex;flex-direction:column}
+.style4 .dots{display:flex;gap:6px;margin-bottom:12px}
+.style4 .dots span{width:10px;height:10px;border-radius:50%}
+.style4 .dots span:nth-child(1){background:#ff5f57}
+.style4 .dots span:nth-child(2){background:#ffbd2e}
+.style4 .dots span:nth-child(3){background:#28c840}
+.style4 .title{font-size:13px;font-weight:600;color:rgba(255,255,255,.9);margin-bottom:14px}
+.style4 .items{flex:1;display:flex;flex-direction:column;gap:8px}
+.style4 .items .item{background:rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:12px;color:rgba(255,255,255,.85)}
+.style4 .items .item .badge{margin-left:auto;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:10px;font-size:10px}
+.style4 .dock{position:absolute;bottom:35px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.15);backdrop-filter:blur(30px);border-radius:20px;padding:6px 14px;display:flex;gap:12px;border:1px solid rgba(255,255,255,.1)}
+.style4 .dock span{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;background:rgba(255,255,255,.1)}
+
+/* ============= STYLE 5: Win11 Fluent ============= */
+.style5{height:100%;background:#f3f3f3;padding:16px;font-family:'Segoe UI Variable','Segoe UI',sans-serif;color:#1a1a1a}
+.style5 .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.style5 .top h3{font-size:16px;font-weight:600}
+.style5 .search{background:#fff;border-radius:8px;padding:8px 12px;font-size:12px;color:#999;border:1px solid #e0e0e0;width:130px}
+.style5 .tabs{display:flex;gap:4px;margin-bottom:14px;background:#e8e8e8;border-radius:8px;padding:3px}
+.style5 .tabs span{padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer}
+.style5 .tabs .act{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.style5 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.style5 .wcard{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.style5 .wcard .icon{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#60a5fa,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;margin-bottom:8px}
+.style5 .wcard .n{font-size:22px;font-weight:700}
+.style5 .wcard .l{font-size:11px;color:#888}
+.style5 .list{background:#fff;border-radius:10px;padding:10px}
+.style5 .list .r{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:12px}
+
+/* ============= STYLE 6: Industrial Dashboard ============= */
+.style6{height:100%;background:#1b2838;color:#c7d5e0;padding:12px;font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;gap:8px}
+.style6 .title{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.style6 .title h3{font-size:14px;color:#66c0f4;font-weight:600}
+.style6 .gauges{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.style6 .gauge{background:#2a3a4a;border-radius:10px;padding:10px;text-align:center;border-bottom:3px solid #66c0f4}
+.style6 .gauge .v{font-size:24px;font-weight:700;color:#fff}
+.style6 .gauge .l{font-size:10px;color:#8f98a0}
+.style6 .gauge.orange{border-bottom-color:#f0ad4e}
+.style6 .gauge.green{border-bottom-color:#5cb85c}
+.style6 .gauge.purple{border-bottom-color:#9b59b6}
+.style6 .section{background:#2a3a4a;border-radius:10px;padding:10px;flex:1}
+.style6 .section .h{font-size:11px;color:#8f98a0;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.style6 .section .r{display:flex;justify-content:space-between;padding:5px 0;font-size:12px;border-bottom:1px solid rgba(255,255,255,.05)}
+.style6 .section .r .s{color:#66c0f4}
+.style6 .bottom-bar{display:flex;gap:6px;margin-top:auto}
+.style6 .bottom-bar span{flex:1;text-align:center;padding:8px;background:#2a3a4a;border-radius:8px;font-size:11px;color:#8f98a0}
+
+/* ============= STYLE 7: Chinese Red Enterprise ============= */
+.style7{height:100%;background:#f5f0eb;padding:16px;font-family:"Microsoft YaHei",sans-serif;position:relative}
+.style7 .header{background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;padding:14px 16px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.style7 .header h3{font-size:15px;font-weight:700;letter-spacing:2px}
+.style7 .header .sub{font-size:10px;opacity:.8}
+.style7 .nav{display:flex;background:#fff;border-radius:10px;padding:4px;margin-bottom:12px;box-shadow:0 2px 8px rgba(192,57,43,.08)}
+.style7 .nav span{flex:1;text-align:center;padding:7px;font-size:12px;border-radius:8px;cursor:pointer}
+.style7 .nav .act{background:#c0392b;color:#fff}
+.style7 .panel{background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:10px}
+.style7 .panel .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f8f0eb;font-size:12px}
+.style7 .panel .row .v{font-weight:600;color:#c0392b}
+.style7 .btn-red{background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border:none;border-radius:8px;padding:10px;width:100%;font-size:14px;font-weight:600;letter-spacing:2px;margin-top:6px}
+.style7 .gold-line{position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#c0392b,#f1c40f,#c0392b)}
+
+/* ============= STYLE 8: Tailwind Modern ============= */
+.style8{height:100%;background:#f8fafc;padding:20px;font-family:'Inter','Segoe UI',sans-serif;color:#0f172a}
+.style8 .flex{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.style8 .flex h3{font-size:16px;font-weight:700}
+.style8 .flex .btn-sm{background:#0f172a;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:12px}
+.style8 .stat3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.style8 .stat3 .s{background:#fff;border-radius:12px;padding:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.style8 .stat3 .s .n{font-size:20px;font-weight:800;color:#0f172a}
+.style8 .stat3 .s .l{font-size:11px;color:#64748b;margin-top:2px}
+.style8 .stat3 .s .b{width:100%;height:4px;background:#e2e8f0;border-radius:2px;margin-top:8px;overflow:hidden}
+.style8 .stat3 .s .b .f{height:100%;border-radius:2px;background:#3b82f6}
+.style8 .list2{background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden}
+.style8 .list2 .r{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px}
+.style8 .list2 .r:last-child{border-bottom:none}
+.style8 .list2 .r .tag2{background:#f1f5f9;padding:2px 8px;border-radius:6px;font-size:11px;color:#64748b}
+
+/* ============= STYLE 9: Terminal Retro ============= */
+.style9{height:100%;background:#0d0d0d;padding:16px;font-family:'Cascadia Code','Fira Code','Courier New',monospace;color:#33ff33;position:relative}
+.style9 .scanline{position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(0deg,rgba(0,255,0,.03) 0px,rgba(0,255,0,.03) 1px,transparent 1px,transparent 3px);pointer-events:none}
+.style9 .term-bar{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #33ff33;margin-bottom:12px;font-size:11px}
+.style9 .term-bar .cursor{animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.style9 .output{font-size:12px;line-height:1.8}
+.style9 .output .prompt{color:#33ff33}
+.style9 .output .prompt::before{content:'$ '}
+.style9 .output .info{color:#889988}
+.style9 .output .highlight{color:#ffff33}
+.style9 .output .error{color:#ff3333}
+.style9 .input-line{display:flex;align-items:center;margin-top:12px;font-size:12px}
+.style9 .input-line span{color:#33ff33;margin-right:6px}
+.style9 .input-line .input-bg{flex:1;background:rgba(51,255,51,.05);border:1px solid #33ff33;padding:6px 10px;border-radius:4px;color:#33ff33;font-family:inherit;font-size:12px;outline:none;caret-color:#33ff33}
+
+/* ============= STYLE 10: Gradient Colorful ============= */
+.style10{height:100%;background:linear-gradient(135deg,#667eea,#764ba2,#f093fb);padding:16px;font-family:'Segoe UI',sans-serif;position:relative}
+.style10::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");pointer-events:none}
+.style10 .glass2{background:rgba(255,255,255,.15);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-radius:16px;border:1px solid rgba(255,255,255,.25);padding:16px;height:100%;display:flex;flex-direction:column}
+.style10 .top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.style10 .top-row h3{font-size:16px;color:#fff;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,.2)}
+.style10 .top-row .pill{background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px;font-size:11px;color:#fff}
+.style10 .cards-color{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;flex:1}
+.style10 .cards-color .cc{border-radius:12px;padding:14px;color:#fff;display:flex;flex-direction:column}
+.style10 .cards-color .cc .e{font-size:28px;margin-bottom:6px}
+.style10 .cards-color .cc .n2{font-size:16px;font-weight:700}
+.style10 .cards-color .cc .l2{font-size:10px;opacity:.8;margin-top:2px}
+.style10 .cards-color .cc1{background:linear-gradient(135deg,#ff6b6b,#ee5a24)}
+.style10 .cards-color .cc2{background:linear-gradient(135deg,#48dbfb,#0abde3)}
+.style10 .cards-color .cc3{background:linear-gradient(135deg,#ff9ff3,#f368e0)}
+.style10 .cards-color .cc4{background:linear-gradient(135deg,#feca57,#ff9f43)}
+.style10 .action-bar{display:flex;gap:8px}
+.style10 .action-bar span{flex:1;background:rgba(255,255,255,.2);border-radius:10px;padding:10px;text-align:center;font-size:12px;color:#fff;font-weight:600}
+
+.label{font-weight:600;font-size:13px}
+.desc{font-size:10px;color:#666;line-height:1.5;padding:8px 14px 12px}
+</style>
+</head>
+<body>
+<h1>🎨 10 种工厂管理系统 UI 风格</h1>
+<p class="sub">每种风格都适配了你的 5 个核心功能（标签 / 美国 / 加拿大 / 收货核对）— 点击卡片右上角编号可看说明</p>
+
+<div class="grid">
+
+<!-- 1. Material Design -->
+<div class="card"><div class="card-header"><span class="label">🏗 Material Design</span><span class="tag">Google 风格</span></div>
+<div class="card-body"><div class="style1"><div class="appbar"><span>🏭 工厂工作台</span><span>🔔</span></div><div class="cards">
+<div class="card1"><div class="ico" style="background:#e3f2fd;color:#1565c0">🏷</div><div class="t">100×100 标签</div><div class="s">手机壳装箱标签打印</div></div>
+<div class="card1"><div class="ico" style="background:#e8f5e9;color:#2e7d32">📋</div><div class="t">100×30 标签</div><div class="s">提货信息标签打印</div></div>
+<div class="card1"><div class="ico" style="background:#fff3e0;color:#e65100">🇺🇸</div><div class="t">美国发货</div><div class="s">按区域汇总装箱单</div></div>
+<div class="card1"><div class="ico" style="background:#fce4ec;color:#c62828">🇨🇦</div><div class="t">加拿大发货</div><div class="s">直接清单模式</div></div>
+</div><div class="fab">＋</div></div></div>
+<div class="desc">卡片 + 浮动按钮 + 柔和配色。功能一目了然，适合触摸操作。</div></div>
+
+<!-- 2. Ant Design -->
+<div class="card"><div class="card-header"><span class="label">🏗 Ant Design</span><span class="tag">企业级</span></div>
+<div class="card-body"><div class="style2"><div class="sidebar"><div class="act">🏭</div><div>🏷</div><div>📋</div><div>🇺🇸</div><div>🇨🇦</div><div>✅</div></div>
+<div class="content"><div class="topbar"><span>工作台</span><span>👤 管理员</span></div>
+<div class="table"><div class="row"><span>功能</span><span>状态</span><span>上次操作</span><span>操作</span></div>
+<div class="row"><span>🏷 100×100标签</span><span><span style="color:#52c41a">●</span> 就绪</span><span>10:32</span><span style="color:#1890ff">执行</span></div>
+<div class="row"><span>📋 100×30标签</span><span><span style="color:#52c41a">●</span> 就绪</span><span>09:15</span><span style="color:#1890ff">执行</span></div>
+<div class="row"><span>🇺🇸 美国发货</span><span><span style="color:#faad14">●</span> 待上传</span><span>-</span><span style="color:#1890ff">执行</span></div>
+</div><button class="btn">＋ 新建任务</button></div></div></div>
+<div class="desc">侧栏图标导航 + 表格布局。经典企业管理后台，功能多时最实用。</div></div>
+
+<!-- 3. Dark Cyber -->
+<div class="card"><div class="card-header"><span class="label">🏗 Dark Cyber</span><span class="tag">赛博朋克</span></div>
+<div class="card-body"><div class="style3"><div class="header"><h3>⚡ FACTORY CORE</h3><span style="color:#0ff;font-size:10px">● ONLINE</span></div>
+<div class="stat"><div class="stat-box"><div class="n">128</div><div class="l">今日标签</div></div><div class="stat-box"><div class="n">24</div><div class="l">今日发货</div></div><div class="stat-box"><div class="n">6</div><div class="l">待核对</div></div><div class="stat-box"><div class="n">98%</div><div class="l">完成率</div></div></div>
+<div class="list-item"><span>🏷 100×100</span><span class="s">56张</span></div>
+<div class="list-item"><span>📋 100×30</span><span class="s">72张</span></div>
+<div class="list-item"><span>🇺🇸 美国</span><span class="s">12单</span></div>
+<div class="list-item"><span>🇨🇦 加拿大</span><span class="s">8单</span></div>
+<button class="scan-btn">▶ 开始扫描</button></div></div>
+<div class="desc">深色背景 + 霓虹蓝紫 + 终端感。适合夜班/暗环境使用，沉浸感强。</div></div>
+
+<!-- 4. macOS Glass -->
+<div class="card"><div class="card-header"><span class="label">🏗 macOS Glass</span><span class="tag">毛玻璃</span></div>
+<div class="card-body"><div class="style4"><div class="glass"><div class="dots"><span></span><span></span><span></span></div>
+<div class="title">🏭 工作台</div>
+<div class="items"><div class="item"><span>🏷</span> 100×100 标签打印<span class="badge">32</span></div>
+<div class="item"><span>📋</span> 100×30 提货标签<span class="badge">18</span></div>
+<div class="item"><span>🇺🇸</span> 美国发货汇总<span class="badge">6单</span></div>
+<div class="item"><span>🇨🇦</span> 加拿大发货汇总<span class="badge">4单</span></div>
+<div class="item"><span>✅</span> 收货单据核对<span class="badge">3张</span></div></div></div>
+<div class="dock"><span>🏷</span><span>📋</span><span>🇺🇸</span><span>🇨🇦</span><span>✅</span></div></div></div>
+<div class="desc">毛玻璃效果 + macOS 风格 + Dock 栏。颜值高、视觉通透，适合展示屏。</div></div>
+
+<!-- 5. Win11 Fluent -->
+<div class="card"><div class="card-header"><span class="label">🏗 Win11 Fluent</span><span class="tag">Windows 11</span></div>
+<div class="card-body"><div class="style5"><div class="top"><h3>🏭 工厂工作台</h3><div class="search">🔍 搜索功能...</div></div>
+<div class="tabs"><span class="act">全部</span><span>标签</span><span>发货</span><span>核对</span></div>
+<div class="grid2"><div class="wcard"><div class="icon">🏷</div><div class="n">128</div><div class="l">今日标签</div></div><div class="wcard"><div class="icon" style="background:linear-gradient(135deg,#34d399,#059669)">📦</div><div class="n">18</div><div class="l">今日发货</div></div></div>
+<div class="list"><div class="r"><span>🇺🇸 美国发货汇总</span><span>6单</span></div>
+<div class="r"><span>🇨🇦 加拿大发货汇总</span><span>4单</span></div>
+<div class="r"><span>✅ 收货核对</span><span>3张待处理</span></div></div></div></div>
+<div class="desc">圆角 + 柔和阴影 + 分段切换。微软 Fluent Design 风格，亲切自然。</div></div>
+
+<!-- 6. Industrial Dashboard -->
+<div class="card"><div class="card-header"><span class="label">🏗 Dashboard</span><span class="tag">工业仪表盘</span></div>
+<div class="card-body"><div class="style6"><div class="title"><h3>🏭 生产看板</h3><span style="font-size:11px;color:#66c0f4">● 实时</span></div>
+<div class="gauges"><div class="gauge"><div class="v">128</div><div class="l">标签</div></div><div class="gauge orange"><div class="v">18</div><div class="l">发货</div></div><div class="gauge green"><div class="v">95%</div><div class="l">完成率</div></div></div>
+<div class="section"><div class="h">📋 最新任务</div>
+<div class="r"><span>100×100 标签 - iPhone 15</span><span class="s">32张</span></div>
+<div class="r"><span>100×30 提货标签</span><span class="s">18张</span></div>
+<div class="r"><span>美国发货 - 纽约仓</span><span class="s">6单</span></div>
+<div class="r"><span>加拿大发货 - 多伦多</span><span class="s">4单</span></div></div>
+<div class="bottom-bar"><span>🏷 标签</span><span>📦 发货</span><span>✅ 核对</span><span>📊 统计</span></div></div></div>
+<div class="desc">工业风 + 仪表盘 + 数据看板。Steam 风格，适合大屏监控，数据感强。</div></div>
+
+<!-- 7. Chinese Red -->
+<div class="card"><div class="card-header"><span class="label">🏗 国风红</span><span class="tag">中国风·企业</span></div>
+<div class="card-body"><div class="style7"><div class="gold-line"></div>
+<div class="header"><div><h3>🏭 生产管理系统</h3><div class="sub">FACTORY WORKSHOP</div></div><span style="font-size:20px">⚙</span></div>
+<div class="nav"><span class="act">标签打印</span><span>发货汇总</span><span>收货核对</span><span>数据统计</span></div>
+<div class="panel"><div class="row"><span>100×100 手机壳标签</span><span class="v">32 张</span></div>
+<div class="row"><span>100×30 提货标签</span><span class="v">18 张</span></div>
+<div class="row"><span>🇺🇸 美国发货汇总</span><span class="v">6 单</span></div>
+<div class="row"><span>🇨🇦 加拿大发货汇总</span><span class="v">4 单</span></div></div>
+<button class="btn-red">执 行 操 作</button></div></div>
+<div class="desc">中国红 + 金色点缀 + 正式排版。传统制造业偏好，大气稳重。</div></div>
+
+<!-- 8. Tailwind Modern -->
+<div class="card"><div class="card-header"><span class="label">🏗 Tailwind</span><span class="tag">现代极简</span></div>
+<div class="card-body"><div class="style8"><div class="flex"><h3>🏭 工作台</h3><button class="btn-sm">导出</button></div>
+<div class="stat3"><div class="s"><div class="n">128</div><div class="l">今日标签</div><div class="b"><div class="f" style="width:75%"></div></div></div>
+<div class="s"><div class="n">18</div><div class="l">今日发货</div><div class="b"><div class="f" style="width:45%;background:#10b981"></div></div></div>
+<div class="s"><div class="n">95%</div><div class="l">完成率</div><div class="b"><div class="f" style="width:95%;background:#8b5cf6"></div></div></div></div>
+<div class="list2"><div class="r"><span>🏷 100×100 标签</span><span class="tag2">32张</span></div>
+<div class="r"><span>📋 100×30 提货标签</span><span class="tag2">18张</span></div>
+<div class="r"><span>🇺🇸 美国发货汇总</span><span class="tag2">6单</span></div>
+<div class="r"><span>🇨🇦 加拿大发货汇总</span><span class="tag2">4单</span></div></div></div></div>
+<div class="desc">Tailwind CSS 极简风格，大量留白 + 进度条。现代 SaaS 产品常用。</div></div>
+
+<!-- 9. Terminal Retro -->
+<div class="card"><div class="card-header"><span class="label">🏗 Terminal</span><span class="tag">复古终端</span></div>
+<div class="card-body"><div class="style9"><div class="scanline"></div>
+<div class="term-bar"><span>FACTORY@WS01:~/workshop</span><span class="cursor">■</span></div>
+<div class="output">
+<div><span class="prompt"></span><span class="highlight">./run --list</span></div>
+<div><span class="info">  ├─ lbl100   : 100×100 标签  [32张]</span></div>
+<div><span class="info">  ├─ lbl30    : 100×30 标签   [18张]</span></div>
+<div><span class="info">  ├─ us       : 美国发货汇总  [6单]</span></div>
+<div><span class="info">  ├─ ca       : 加拿大发货汇总 [4单]</span></div>
+<div><span class="info">  └─ rc       : 收货核对      [3张]</span></div>
+<div><span class="prompt"></span><span class="highlight">./run lbl100 --file=upload.xlsx</span></div>
+<div><span style="color:#33ff33">  ✔ 完成：32张标签已生成 → 桌面</span></div>
+</div>
+<div class="input-line"><span>$</span><div class="input-bg">./run us --file=订单.xlsx</div></div></div></div>
+<div class="desc">终端模拟器风格，命令行操作。极客范儿、高性能感，键盘操作效率极高。</div></div>
+
+<!-- 10. Gradient Colorful -->
+<div class="card"><div class="card-header"><span class="label">🏗 渐变炫彩</span><span class="tag">活泼色彩</span></div>
+<div class="card-body"><div class="style10"><div class="glass2"><div class="top-row"><h3>🏭 工作台</h3><span class="pill">今日 06/08</span></div>
+<div class="cards-color"><div class="cc cc1"><div class="e">🏷</div><div class="n2">100×100</div><div class="l2">手机壳标签 · 32张</div></div>
+<div class="cc cc2"><div class="e">📋</div><div class="n2">100×30</div><div class="l2">提货标签 · 18张</div></div>
+<div class="cc cc3"><div class="e">🇺🇸</div><div class="n2">美国发货</div><div class="l2">6单 · 汇总中</div></div>
+<div class="cc cc4"><div class="e">🇨🇦</div><div class="n2">加拿大发货</div><div class="l2">4单 · 已就绪</div></div></div>
+<div class="action-bar"><span>🏷 标签</span><span>📦 发货</span><span>✅ 核对</span></div></div></div></div>
+<div class="desc">毛玻璃 + 渐变卡片 + 炫彩背景。年轻活泼、视觉冲击强，适合展示或轻量管理。</div></div>
+
+</div>
+
+<p class="sub" style="margin-top:40px;font-size:12px;color:#555">
+💡 看上哪个告诉我编号/名字，我把它做到测试版里（端口8933），稳定版不动。
+</p>
+</body>
+</html>

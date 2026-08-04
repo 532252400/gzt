@@ -1,0 +1,68 @@
+<script>
+function f(id){document.getElementById(id).click()}
+function fs(fid,tid,bid){document.getElementById(tid).textContent='📄 '+document.getElementById(fid).files[0].name;document.getElementById(bid).disabled=false}
+function s(id,c,m){var r=document.getElementById(id);r.className='rs '+c;r.style.display='block';r.textContent=m}
+async function go(a){
+    var m={lbl100:{f:'f1',b:'b1',r:'r1'},lbl30:{f:'f2',b:'b2',r:'r2'},us:{f:'f3',b:'b3',r:'r3'},ca:{f:'f4',b:'b4',r:'r4'},rc:{f:'f5',b:'b5',r:'r5'}}[a];
+    var fi=document.getElementById(m.f),btn=document.getElementById(m.b),res=document.getElementById(m.r);
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s(res,'wa','⏳...');
+    var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action',a);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s(res,d.status==='ok'?'ok':'er',d.status==='ok'?d.message:'❌ '+d.message)}
+    catch(e){s(res,'er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent=a==='rc'?'开始核对':(a==='us'||a==='ca'?'生成汇总':'生成标签');
+}
+async function uploadBatch(){
+    var fi=document.getElementById('f8'),btn=document.getElementById('b8'),nm=document.getElementById('batchName').value.trim()||'批次'+new Date().toLocaleDateString();
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s('r8','wa','⏳加载中...');
+    var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','shipment');fd.append('batch_name',nm);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s('r8',d.status==='ok'?'ok':'er',d.message);if(d.status==='ok')loadMetrics()}
+    catch(e){s('r8','er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent='📤 上传批次';
+}
+async function uploadJobs(){
+    var fi=document.getElementById('f9'),btn=document.getElementById('b9'),nm=document.getElementById('batchName2').value.trim()||'加工单'+new Date().toLocaleDateString();
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s('r9','wa','⏳...');
+    var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','import_jobs');fd.append('batch_name',nm);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s('r9',d.status==='ok'?'ok':'er',d.message);if(d.status==='ok')loadMetrics()}
+    catch(e){s('r9','er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent='📤 上传加工单';
+}
+async function track(){
+    var num=document.getElementById('trackNum').value.trim(),btn=document.getElementById('trackBtn');
+    if(!num){s('r6','er','❌ 输入单号');return}
+    btn.disabled=true;btn.innerHTML='<span class="ld"></span>...';s('r6','wa','⏳...');
+    try{var r=await fetch('/track?num='+encodeURIComponent(num));var d=await r.json();s('r6',d.status==='ok'?'ok':'er',d.message)}
+    catch(e){s('r6','er','❌ '+e.message)}
+    btn.disabled=false;btn.textContent='🔍 查询物流';
+}
+async function qq(){
+    var t=document.getElementById('qt').value;
+    if(!t){s('r7','er','❌ 输入问题');return}s('r7','wa','⏳...');
+    try{var r=await fetch('/q?q='+encodeURIComponent(t));var d=await r.json();s('r7',d.status==='ok'?'ok':'er',d.message)}
+    catch(e){s('r7','er','❌ '+e.message)}
+}
+// 分类筛选
+document.querySelectorAll('#catFilter span').forEach(function(el){
+    el.addEventListener('click',function(){
+        document.querySelectorAll('#catFilter span').forEach(function(s){s.classList.remove('act')});
+        this.classList.add('act');
+        var cat=this.getAttribute('data-cat');
+        document.querySelectorAll('#cardGrid .cd').forEach(function(c){c.classList.toggle('hide',cat!=='all' && c.getAttribute('data-cat')!==cat)});
+    });
+});
+// 指标数据
+async function loadMetrics(){
+    try{var r=await fetch('/workshop_data');var items=await r.json();
+        var pending=items.filter(function(i){return i.status==='pending'}).length;
+        var processing=items.filter(function(i){return i.status==='processing'}).length;
+        var todayStr=new Date();todayStr=todayStr.getFullYear()+'-'+(todayStr.getMonth()+1).toString().padStart(2,'0')+'-'+todayStr.getDate().toString().padStart(2,'0');
+        var today=items.filter(function(i){return i.status==='completed' && i.completed && i.completed.substr(0,10)===todayStr}).length;
+        var priority=items.filter(function(i){return i.priority==1}).length;
+        document.getElementById('wsPending').textContent=pending;
+        document.getElementById('wsProcessing').textContent=processing;
+        document.getElementById('wsToday').textContent=today;
+        document.getElementById('wsPriority').textContent=priority;
+    }catch(e){}
+}
+loadMetrics();
+</script></body></html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>扫码核对</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;color:#333;padding:10px;max-width:500px;margin:0 auto}
+h1{font-size:18px;text-align:center;padding:8px 0 4px}
+.st{text-align:center;font-size:11px;color:#999;margin-bottom:10px}
+.sel{width:100%;padding:10px;border:2px solid #1a73e8;border-radius:8px;font-size:15px;text-align:center;margin-bottom:8px;background:#fff;appearance:auto;cursor:pointer}
+.sel:focus{outline:none;border-color:#1557b0}
+.i{width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:16px;text-align:center;margin-bottom:8px}
+.i:focus{outline:none;border-color:#1a73e8}
+.r{padding:20px;border-radius:10px;text-align:center;display:none;margin-top:10px}
+.r .i2{font-size:48px;margin-bottom:6px}
+.r .s{font-size:20px;font-weight:bold;margin-bottom:4px}
+.r .d{font-size:13px;color:#666}
+.good{background:#e6f4ea;border:2px solid #34a853}
+.bad{background:#fce8e6;border:2px solid #ea4335}
+.sc{font-size:12px;margin-top:10px;padding:8px;background:#fff;border-radius:6px;max-height:150px;overflow-y:auto;display:none}
+.sc div{padding:3px 0;border-bottom:1px solid #eee}.sc div:last-child{border:none}
+	.hd{display:none}
+.cr{font-size:11px;color:#999;text-align:center;margin-top:15px}
+</style></head><body>
+<h1>📋 扫码核对</h1>
+<p class="st" id="batchInfo">加载中...</p>
+<select class="sel" id="regionSel"><option value="">-- 请选择区域 --</option></select>
+<input class="i" id="worker" placeholder="输入你的名字">
+<div style="display:flex;gap:6px;padding:0;margin-bottom:8px">
+<input class="i" id="codeInput" placeholder="输入条码" style="flex:1;margin-bottom:0" onkeydown="if(event.key==='Enter')manualCheck()">
+<button onclick="manualCheck()" style="padding:10px 18px;background:#1a73e8;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;white-space:nowrap">查询</button>
+</div>
+<div class="r" id="result"></div>
+<div class="sc" id="scanList"></div>
+<p class="cr"><a href="/scan_admin">管理后台 →</a></p>
+<script>
+var w=localStorage.getItem('sw');if(w)document.getElementById('worker').value=w;
+document.getElementById('worker').oninput=function(){localStorage.setItem('sw',this.value)};
+
+async function manualCheck(){
+    var code=document.getElementById('codeInput').value.trim();
+    if(!code){alert('请输入条码');return}
+    check(code);
+}
+
+async function check(c){
+    var rs=document.getElementById('result'),sl=document.getElementById('scanList');
+    var rg=document.getElementById('regionSel').value;
+    rs.style.display='block';rs.className='r';rs.innerHTML='<div class="i2">\u23f3</div><div class="s">查询中...</div>';
+    var r=await fetch('/scan_check?code='+encodeURIComponent(c)+'&worker='+encodeURIComponent(document.getElementById('worker').value.trim())+'&region='+encodeURIComponent(rg));
+    var d=await r.json();
+    if(d.found && d.match){
+        rs.className='r good';
+        rs.innerHTML='<div class="i2">\u2705</div><div class="s">\u6b63\u786e\uff01</div><div class="d">'+d.doc_number.substring(0,12)+'<br>\u5171'+d.expected_qty+'\u7bb1\uff0c\u5c5e\u4e8e'+d.region+'</div>';
+    } else if(d.found && !d.match){
+        rs.className='r bad';
+        rs.innerHTML='<div class="i2">\u274c</div><div class="s">\u8d27\u7269\u653e\u9519\uff01</div><div class="d">'+d.code12+'<br>\u6b64\u5355\u5c5e\u4e8e <b>'+d.wrong_region+'</b>\uff0c\u5171'+d.expected_qty+'\u7bb1<br>\u8bf7\u66f4\u6b63\u8d27\u7269\uff0c\u653e\u56de<strong>'+d.wrong_region+'</strong>';
+    } else {
+        rs.className='r bad';
+        rs.innerHTML='<div class="i2">\u2753</div><div class="s">\u672a\u627e\u5230\u6b64\u5355\u53f7</div><div class="d">'+c.substring(0,12)+'<br>\u4e0d\u5728\u5f53\u524d\u6279\u6b21\u6570\u636e\u4e2d</div>';
+    }
+    sl.style.display='block';
+    sl.innerHTML='<b>\u23f1 \u626b\u63cf\u8bb0\u5f55</b>'+d.history.map(h=>'<div>'+h.time.substr(11,8)+' '+h.worker+' \u2192 '+h.code+' '+h.status+'</div>').reverse().join('');
+    scanning=false;
+    // 自动弹出继续扫码按钮
+    document.getElementById('nextBtn').style.display='block';
+}
+
+function restartCamera(){
+    document.getElementById('result').style.display='none';
+    document.getElementById('nextBtn').style.display='none';
+    document.getElementById('reader').style.display='block';
+    flashOn=false;
+    startScan();
+}
+
+// 加载区域选项和信息
+fetch('/scan_info').then(r=>r.json()).then(d=>{
+    document.getElementById('batchInfo').textContent=d.batch_name+' | '+d.total+'\u9879';
+    var sel=document.getElementById('regionSel');
+    var saved=localStorage.getItem('sr')||'';
+    d.regions.forEach(function(rg){
+        var o=document.createElement('option');
+        o.value=rg;
+        var rs=d.region_stats[rg]||{total:0,scanned:0};
+        o.textContent=rg+' ('+rs.total+'\u9879, \u5df2\u626b'+rs.scanned+')';
+        sel.appendChild(o);
+    });
+    if(saved && d.regions.includes(saved)){
+        sel.value=saved;
+        setTimeout(autoStart,300);
+    }
+});
+</script></body></html>

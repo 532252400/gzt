@@ -1,0 +1,141 @@
+﻿<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>设计包装</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#fff;color:#333;padding:20px;max-width:600px;margin:0 auto}
+h3{font-size:15px;margin-bottom:4px;color:#2d3748}
+.tag{display:inline-block;padding:1px 8px;border-radius:3px;font-size:10px;font-weight:600;margin-bottom:12px}
+.tag-yellow{background:#fefcbf;color:#975a16}
+p.tip{font-size:11px;color:#718096;margin-bottom:10px}
+table{font-size:12px;margin-bottom:8px;width:100%}
+td{padding:3px 6px 3px 0;color:#718096;white-space:nowrap}
+input.ti{padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;outline:none}
+input.ti:focus{border-color:#3182ce}
+.btn{padding:8px 18px;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500}
+.btn-yellow{background:#d69e2e;color:#fff}
+.btn-green{background:#38a169;color:#fff}
+.result-box{padding:10px;border-radius:6px;font-size:12px;display:none}
+.result-box.ok{background:#f0fff4;border:1px solid #c6f6d5;display:block}
+.result-box.err{background:#fff5f5;border:1px solid #fed7d7;display:block}
+#pkTemplates{margin-top:10px}
+#pkTemplates h4{font-size:12px;margin-bottom:6px;color:#2d3748}
+#pkOutput{background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;font-size:11px;line-height:1.8;white-space:pre-wrap;word-break:break-all}
+
+.section-tit{font-size:11px;font-weight:600;color:#4a5568;padding:6px 0 2px;border-bottom:1px solid #e2e8f0;margin-top:8px}
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
+<div class="tag tag-yellow">包装</div>
+<h3>包装设计</h3>
+<p class="tip">输入参数，自动生成四套包装方案。</p>
+<div class="section-tit">&#x1F4E6; 产品信息</div>
+<table>
+<tr><td>SKU</td><td><input class="ti" id="pkSKU" type="text" placeholder="如:NH-GKG67-TY1" style="width:80px;text-align:center"><span style="font-size:10px;color:#999"> BZ-替换前缀-随机</span></td><td style="text-align:right"><input type="file" id="pkUpload" accept=".csv,.xlsx,.xls" style="display:none" onchange="uploadProduct()"><button class="btn" style="background:#38a169;color:#fff;padding:4px 10px;font-size:11px" onclick="document.getElementById('pkUpload').click()">📎 上传</button></td></tr>
+<tr><td>品名</td><td colspan="3"><input class="ti" id="pkName" type="text" placeholder="如:4OZ/125ML 圆底卡扣瓶 24个打包" style="width:100%"></td></tr>
+</table>
+<div class="section-tit">&#x1F539; 孔位参数</div>
+<table>
+<tr><td>孔直径</td><td><input class="ti" id="pkHole" type="number" value="49" style="width:70px;text-align:center"> mm</td><td colspan="2"><label style="font-size:12px;cursor:pointer;white-space:nowrap"><input type="checkbox" id="pkExhaust" style="vertical-align:middle;margin-right:3px">做排气孔</label></td></tr>
+<tr><td>长个数</td><td><input class="ti" id="pkCols" type="number" value="6" style="width:70px;text-align:center"></td>
+<td>宽个数</td><td><input class="ti" id="pkRows" type="number" value="4" style="width:70px;text-align:center"></td></tr>
+<tr><td>间距</td><td><input class="ti" id="pkGap" type="number" value="10" style="width:70px;text-align:center"> mm</td>
+<td>边距</td><td><input class="ti" id="pkEdge" type="number" value="10" style="width:70px;text-align:center"> mm</td></tr>
+</table>
+<div class="section-tit">&#x1F4CF; 尺寸参数</div>
+<table>
+<tr><td>瓶身高</td><td><input class="ti" id="pkBaseH" type="number" value="60" style="width:70px;text-align:center"> mm</td>
+<td>底厚</td><td><input class="ti" id="pkAddH" type="number" value="10" style="width:70px;text-align:center"> mm</td></tr>
+</table>
+<div class="section-tit">&#x1F4E6; 包装参数</div>
+<table>
+<tr><td>内盒高</td><td><input class="ti" id="pkBoxH" type="number" value="14.6" style="width:70px;text-align:center"> cm</td>
+<td>外箱盒数</td><td><input class="ti" id="pkCarton" type="number" value="6" style="width:70px;text-align:center"> 盒/箱</td></tr>
+</table>
+<button class="btn btn-yellow" onclick="calcPacking()">计算</button>
+<button class="btn btn-green" onclick="exportPacking()" style="margin-left:6px">导出Excel</button>
+<div class="result-box" id="pkResult"></div>
+<div id="pkTemplates" style="display:none">
+<h4>生成方案</h4>
+<div id="pkOutput"></div>
+</div>
+<script>
+function s(id,c,m){var el=document.getElementById(id);el.className="result-box "+c;el.style.display="block";el.textContent=m}
+function uploadProduct(){
+var file=document.getElementById("pkUpload").files[0];
+if(!file)return;
+var reader=new FileReader();
+reader.onload=function(e){
+var data=new Uint8Array(e.target.result);
+var wb=XLSX.read(data,{type:"array"});
+var ws=wb.Sheets[wb.SheetNames[0]];
+var rows=XLSX.utils.sheet_to_json(ws,{header:1});
+if(rows.length<2){alert("文件无数据");return}
+var sku="",name="";
+for(var i=1;i<rows.length;i++){
+var r=rows[i];
+if(!r||!r[0])continue;
+sku=String(r[0]||"").trim();
+name=String(r[1]||"").trim();
+break;
+}
+if(!sku){alert("未找到SKU");return}
+var idx=name.indexOf("打包");
+if(idx>=0)name=name.substring(0,idx+2);
+document.getElementById("pkSKU").value=sku;
+document.getElementById("pkName").value=name;
+s("pkResult","ok","已导入: "+sku);
+};
+reader.readAsArrayBuffer(file);
+}
+function calcPacking(){
+var skuCode=document.getElementById("pkSKU").value.trim();
+var name=document.getElementById("pkName").value.trim();
+var hole=parseFloat(document.getElementById("pkHole").value)||49;
+var cols=parseInt(document.getElementById("pkCols").value)||6;
+var rows=parseInt(document.getElementById("pkRows").value)||4;
+var gap=parseFloat(document.getElementById("pkGap").value)||10;
+var edge=parseFloat(document.getElementById("pkEdge").value)||10;
+var baseH=parseFloat(document.getElementById("pkBaseH").value)||60;
+var addH=parseFloat(document.getElementById("pkAddH").value)||10;
+var boxH=parseFloat(document.getElementById("pkBoxH").value)||14.6;
+var carton=parseInt(document.getElementById("pkCarton").value)||6;
+if(!skuCode){s("pkResult","err","请输入SKU");return}
+if(!name){s("pkResult","err","请输入名称");return}
+var total=cols*rows;
+var len=hole*cols+gap*(cols-1)+edge*2;
+var wid=hole*rows+gap*(rows-1)+edge*2;
+var totalH=baseH+addH;
+var parts=skuCode.split("-");
+var base=parts.length>1?parts.slice(1).join("-"):skuCode;
+var arr=[1,2,3,4,5,6,7,8,9];
+for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=arr[i];arr[i]=arr[j];arr[j]=t;}
+var r1=arr[0],r2=arr[1],r3=arr[2],r4=arr[3];
+var sku1="BZ-"+base+r1;
+var sku2="BZ-"+base+r2;
+var sku3="BZ-"+base+r3;
+var sku4="BZ-"+base+r4;
+var n1="珍珠棉"+name+" "+total+"孔 孔直径"+hole+"mm "+len.toFixed(0)+"\u00d7"+wid.toFixed(0)+"\u00d7"+totalH+"mm（"+baseH+"+"+addH+"）间距"+gap+"mm 边距"+edge+"mm";
+if(document.getElementById("pkExhaust").checked)n1+=" 做排气孔";
+var n2="珍珠棉"+name+" "+len.toFixed(0)+"\u00d7"+wid.toFixed(0)+"\u00d7"+addH+"mm 盖板";
+var n3="内盒"+name+" 内径 长"+(len/10).toFixed(1)+"cm 宽"+(wid/10).toFixed(1)+"cm 高"+boxH+"cm";
+var n4="外箱"+name+" "+carton+"盒一箱";
+var t1=sku1+" "+n1,t2=sku2+" "+n2,t3=sku3+" "+n3,t4=sku4+" "+n4;
+var output=t1+"\n"+t2+"\n"+t3+"\n"+t4;
+document.getElementById("pkOutput").innerText=output;
+document.getElementById("pkTemplates").style.display="block";
+s("pkResult","ok","SKU: "+sku1+" | "+total+"孔 | "+len.toFixed(0)+"\u00d7"+wid.toFixed(0)+"\u00d7"+totalH+"mm");
+window._pkData={sku1:sku1,sku2:sku2,sku3:sku3,sku4:sku4,name:name,hole:hole,cols:cols,rows:rows,total:total,len:len.toFixed(0),wid:wid.toFixed(0),baseH:baseH,addH:addH,totalH:totalH,gap:gap,edge:edge,boxH:boxH,carton:carton,t1:t1,t2:t2,t3:t3,t4:t4,n1:n1,n2:n2,n3:n3,n4:n4};
+}
+function exportPacking(){
+if(!window._pkData){alert("请先计算");return}
+var d=window._pkData;
+var csv="序号,SKU,名称\n";
+csv+="1,"+d.sku1+",\""+d.n1+"\"\n";
+csv+="2,"+d.sku2+",\""+d.n2+"\"\n";
+csv+="3,"+d.sku3+",\""+d.n3+"\"\n";
+csv+="4,"+d.sku4+",\""+d.n4+"\"\n";
+var BOM="\uFEFF";
+var blob=new Blob([BOM+csv],{type:"text/csv;charset=utf-8"});
+var a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download=d.name.replace(/[\\/:*?"<>|]/g,"")+".csv";
+a.click();
+}
+</script></body></html>

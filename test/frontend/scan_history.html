@@ -1,0 +1,25 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>全部批次</title><style>
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;color:#333;padding:20px;max-width:1200px;margin:0 auto}
+h1{font-size:20px;margin-bottom:12px}
+.t{width:100%;border-collapse:collapse;font-size:11px}
+.t th,.t td{padding:6px 8px;border:1px solid #ddd;text-align:left}
+.t th{background:#1a73e8;color:#fff;white-space:nowrap;position:sticky;top:0}
+.g{color:#34a853;font-weight:bold}.r{color:#ea4335;font-weight:bold}
+.bb{display:inline-block;background:#e6f4ea;border:1px solid #34a853;border-radius:4px;padding:2px 8px;font-size:10px;color:#188038}
+.br{display:inline-block;background:#fce8e6;border:1px solid #ea4335;border-radius:4px;padding:2px 8px;font-size:10px;color:#d93025}
+.cr{font-size:11px;color:#999;margin-top:16px}
+</style></head><body><h1>全部批次记录</h1>
+<div style="overflow-x:auto"><table class="t" id="batchTable"><tr><th>批次名称</th><th>上传时间</th><th>状态</th><th>总货件</th><th>已扫</th><th>正确</th><th>异常</th><th>更正</th><th>未处理</th><th>各区域</th></tr></table></div>
+<p class="cr"><a href="/scan_admin">← 返回</a> | <a href="/">工作台</a></p><script>
+fetch('/scan_history').then(r=>r.json()).then(bs=>{
+    var t=document.getElementById('batchTable');
+    bs.forEach(function(b){
+        var tr=document.createElement('tr');
+        var rgs='';
+        if(b.regions){Object.entries(b.regions).forEach(function(e){rgs+=e[0]+'('+e[1].scanned+'/'+e[1].total+') ';});}
+        tr.innerHTML='<td><b>'+b.name+'</b></td><td>'+(b.created_at||'').substring(0,16)+'</td>'+'<td><span class="'+(b.status==='complete'?'bb':'br')+'">'+(b.status==='complete'?'已完成':'扫描中')+'</span></td>'+'<td>'+b.items_count+'</td><td class="g">'+b.total_scans+'</td><td class="g">'+b.correct+'</td>'+'<td class="r">'+b.wrong+'</td><td style="color:#3949ab">'+b.corrections+'</td>'+'<td class="r">'+b.still_wrong+'</td><td style="font-size:10px">'+rgs+'</td>';
+        t.appendChild(tr);
+    });
+    if(!bs.length){var tr2=document.createElement('tr');tr2.innerHTML='<td colspan="10" style="text-align:center;color:#999">暂无数据</td>';t.appendChild(tr2);}
+});
+</script></body></html>

@@ -1,0 +1,151 @@
+<script>
+var curItemId = 0;
+var curFilter = 'pending';
+function setFilter(mode){
+    curFilter=mode;
+    document.querySelectorAll('.filter-bar button').forEach(function(b){b.className=''});
+    document.getElementById('f_'+mode).className='on';
+    loadJobs();
+}
+async function loadJobs(){
+    var ppl=localStorage.getItem('default_people')||'1';
+    var r=await fetch('/workshop_data?people='+ppl);var items=await r.json();
+    window.allItems=items;
+	    var ul=document.getElementById('jobList');ul.innerHTML='';
+    if(!items.length){ul.innerHTML='<div class="na">暂无加工单<br>请先在工作台上传</div>';return}
+    var info=document.getElementById('batchInfo');
+    if(info) info.textContent='全部加工单 ('+items.length+'项)';
+    // 优先订单提醒
+    var priPending=items.filter(function(i){return i.status==='pending' && i.priority==1}).length;
+    var el=document.getElementById('priNotice');
+    if(el){if(priPending>0){el.style.display='block';document.getElementById('priCount').textContent=priPending}else el.style.display='none'}
+    // 更新筛选按钮数量
+    var ti=items;
+    document.getElementById('f_pending').textContent='📋 待处理 ('+ti.filter(function(x){return x.status==='pending'}).length+')';
+    document.getElementById('f_processing').textContent='🔧 加工中 ('+ti.filter(function(x){return x.status==='processing'}).length+')';
+    document.getElementById('f_completed').textContent='✅ 已完成 ('+ti.filter(function(x){return x.status==='completed'}).length+')';
+    document.getElementById('f_priority').textContent='⭐ 优先 ('+ti.filter(function(x){return x.priority==1}).length+')';
+    if(curFilter==='all') items=items.filter(function(i){return i.status!=='completed'});
+    if(curFilter==='pending') items=items.filter(function(i){return i.status==='pending'});
+    if(curFilter==='priority') items=items.filter(function(i){return i.priority==1});
+    if(curFilter==='processing') items=items.filter(function(i){return i.status==='processing'});
+    if(curFilter==='completed') items=items.filter(function(i){return i.status==='completed'});
+	    items.forEach(function(i){
+	        var li=document.createElement('li');
+	        if(i.priority) li.className='pri-item';
+	        var statusLabel={pending:'待处理',processing:'加工中',paused:'已暂停',completed:'已完成'};
+	        var stClass = i.status;
+	        var btns='';
+		        if(i.status==='pending'){btns='<button class="btn-s" onclick="startJob('+i.id+')">▶ 开始加工</button>';}
+		        else if(i.status==='processing'){btns='<button class="btn-c" onclick="openComplete(this)" data-qty="'+i.qty+'">✔ 完成</button><button class="btn-x" style="background:#d69e2e" onclick="pauseJob('+i.id+')">⏸ 暂停</button><button class="btn-x" onclick="cancelJob('+i.id+')">✖ 取消</button>';}
+		        else if(i.status==='paused'){btns='<button class="btn-s" onclick="resumeJob('+i.id+')">▶ 取消暂停</button><button class="btn-x" onclick="cancelJob('+i.id+')">✖ 取消</button>';}
+		        else{btns='<button class="btn-d">✔ 已完成</button>';}
+	            var info='<div class="qt">数量: '+i.qty+'</div>';
+	            if(i.status==='completed' && i.done_qty) info+='<div class="qt">完成: '+i.done_qty+'件 | '+i.completed.substr(11,5)+'</div>';
+	        var priBadge = i.priority ? '<span class="pri-badge">⭐优先</span>' : '';
+	        li.innerHTML='<div class="top"><span class="st '+stClass+'"></span><span class="sk">'+i.sku+priBadge+'</span><span style="font-size:10px;color:#999">'+statusLabel[i.status]+'</span></div>'+'<div class="nm">'+(i.name||'')+'</div>'+info+'<div class="btns">'+btns+'</div>';
+	        ul.appendChild(li);
+	    });
+	}
+async function startJob(id){
+    var ppl=document.getElementById('peopleInput')?document.getElementById('peopleInput').value:'';
+    if(!ppl||parseInt(ppl)<1)ppl='1';
+    localStorage.setItem('default_people',ppl);
+    var wn='车间工人 x'+ppl;
+    var fd=new FormData();fd.append('action','start_job');fd.append('batch_name',id);fd.append('worker',wn);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+function savePeople(){
+    var v=document.getElementById('peopleInput').value;
+    if(v&&parseInt(v)>=1){localStorage.setItem('default_people',v);document.getElementById('peopleLabel').textContent='上班: '+v+'人';}
+}
+async function cancelJob(id){
+    if(!confirm('确定取消此加工任务？'))return;
+    var fd=new FormData();fd.append('action','cancel_job');fd.append('batch_name',id);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('✅');loadJobs();}else alert('❌ '+d.message);}
+	async function pauseJob(id){
+	    var fd=new FormData();fd.append('action','pause_job');fd.append('batch_name',id);
+	    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('⏸');loadJobs();}else alert('❌ '+d.message);}
+	    catch(e){alert('❌ '+e.message);}
+	}
+	async function resumeJob(id){
+	    var fd=new FormData();fd.append('action','resume_job');fd.append('batch_name',id);
+	    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();if(d.status==='ok'){alert('▶');loadJobs();}else alert('❌ '+d.message);}
+	    catch(e){alert('❌ '+e.message);}
+	}
+	function openComplete(btn){curItemId=btn.dataset.id;curOrderQty=btn.dataset.qty||'';document.getElementById('mSku').textContent=btn.dataset.sku;document.getElementById('mQty').value='';document.getElementById('modal').style.display='flex';}
+	    function fillQty(){document.getElementById('mQty').value=curOrderQty||''}
+function closeModal(){document.getElementById('modal').style.display='none';}
+async function confirmComplete(){
+    var qty=document.getElementById('mQty').value;
+    if(!qty||parseInt(qty)<=0){alert('请输入有效数量');return}
+    var fd=new FormData();fd.append('action','complete_job');fd.append('batch_name',curItemId);fd.append('done_qty',qty);
+    try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();closeModal();if(d.status==='ok'){alert(d.message);loadJobs();}else alert('❌ '+d.message);}
+    catch(e){alert('❌ '+e.message);}
+}
+var savedPpl=localStorage.getItem('default_people');if(savedPpl){document.getElementById('peopleInput').value=savedPpl;document.getElementById('peopleLabel').textContent='上班: '+savedPpl+'人';}
+document.getElementById('batchInfo').textContent='全部加工单';
+loadJobs();
+    // Auto-refresh every 15s
+
+function autoRefresh(){loadJobs();setTimeout(autoRefresh,2000);}
+	autoRefresh();
+	function showQR(){
+	    var url=window.location.href;
+	    document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
+	    document.getElementById('qrModal').style.display='flex';
+	}
+		function downloadQR(){
+		    var url=window.location.href;
+		    var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
+		}
+		// 扫码
+		var scanStream=null;
+		function startScan(){
+		    document.getElementById('scanModal').style.display='flex';
+		    var v=document.getElementById('scanVideo');
+		    if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+		        navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(s){
+		            scanStream=s;v.srcObject=s;v.play();
+		            sL();
+		        }).catch(function(){document.getElementById('scanManual').style.display='block'});
+		    }else document.getElementById('scanManual').style.display='block';
+		}
+		function sL(){
+		    var v=document.getElementById('scanVideo');
+		    if(!v.videoWidth) return;
+		    if('BarcodeDetector' in window){
+		        var d=new BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39']});
+		        d.detect(v).then(function(c){if(c.length>0){sF(c[0].rawValue);return}setTimeout(sL,500)}).catch(function(){setTimeout(sL,500)});
+		    }else setTimeout(sL,500);
+		}
+		function sF(code){
+		    document.getElementById('scanSku').textContent='✅ '+code;
+		    setTimeout(function(){
+		    document.getElementById('scanModal').style.display='none';
+		    document.getElementById('scanManual').style.display='none';
+		    if(scanStream){scanStream.getTracks().forEach(function(t){t.stop()});scanStream=null}
+		    var list=window.allItems||[];code=code.toUpperCase();var mt=null;
+		    for(var i=0;i<list.length;i++){if(list[i].sku.toUpperCase()===code||list[i].sku.includes(code)){mt=list[i];break}}
+		    if(mt){
+		        setFilter('all');
+		        setTimeout(function(){
+		            var cs=document.querySelectorAll('#jobList li');
+		            for(var j=0;j<cs.length;j++){
+		                var se=cs[j].querySelector('.sk');
+		                if(se&&se.textContent.includes(mt.sku)){cs[j].scrollIntoView({behavior:'smooth',block:'center'});cs[j].style.background='#fefcbf';cs[j].style.borderLeft='4px solid #e53e3e';setTimeout(function(){try{cs[j].style.background='';cs[j].style.borderLeft=''}catch(e){}},3000);break}
+		            }
+		        },300);
+		    }else alert('⚠ 未找到: '+code);},100);
+		}
+		function stopScan(){
+		    document.getElementById('scanModal').style.display='none';
+		    document.getElementById('scanManual').style.display='none';
+		    if(scanStream){scanStream.getTracks().forEach(function(t){t.stop()});scanStream=null}
+		}
+		function scanManualSearch(){
+		    var c=document.getElementById('scanInput').value.trim().toUpperCase();
+		    if(c) sF(c);
+		}
+		</script>

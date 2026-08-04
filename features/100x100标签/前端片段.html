@@ -1,0 +1,17 @@
+<!-- 100×100 打印标签 - 前端卡片 -->
+<div class="cd" data-cat="label">
+  <div class="ch">
+    <div class="ico" style="background:#3182ce">🏷</div>
+    <h2>100×100 打印标签</h2>
+    <span class="tg0">手机壳</span>
+  </div>
+  <div class="cb">
+    <p>上传手机壳装箱Excel，生成10×10cm打印标签。</p>
+    <div class="fd" onclick="f('f1')">
+      <span id="t1">📄 点击选择 Excel 文件</span>
+    </div>
+    <input type="file" id="f1" accept=".xlsx" class="hd" onchange="fs('f1','t1','b1')">
+    <button class="btn bp" id="b1" onclick="go('lbl100')" disabled>生成标签</button>
+    <div class="rs" id="r1"></div>
+  </div>
+</div>

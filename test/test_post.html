@@ -1,0 +1,22 @@
+﻿<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>POST Test</title></head>
+<body>
+<h2>POST测试</h2>
+<input type="file" id="f"><button onclick="test()">测试POST</button>
+<div id="r"></div>
+<script>
+async function test(){
+  var f=document.getElementById('f');
+  if(!f.files[0]){document.getElementById('r').textContent='请先选文件';return;}
+  var fd=new FormData();fd.append('file',f.files[0]);fd.append('action','ca');
+  document.getElementById('r').textContent='发送中...';
+  try{
+    var resp=await fetch('/run',{method:'POST',body:fd});
+    var d=await resp.json();
+    document.getElementById('r').textContent=JSON.stringify(d);
+  }catch(e){
+    document.getElementById('r').textContent='Error: '+e.message;
+  }
+}
+</script>
+</body></html>

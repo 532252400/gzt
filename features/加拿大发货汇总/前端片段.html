@@ -1,0 +1,17 @@
+<!-- 加拿大发货汇总 - 前端卡片 -->
+<div class="cd" data-cat="ship">
+  <div class="ch">
+    <div class="ico" style="background:#3182ce">📊</div>
+    <h2>加拿大发货汇总</h2>
+    <span class="tg0">直接清单</span>
+  </div>
+  <div class="cb">
+    <p>上传发货单Excel，1列直接清单。</p>
+    <div class="fd" onclick="f('f4')">
+      <span id="t4">📄 选择 Excel 文件</span>
+    </div>
+    <input type="file" id="f4" accept=".xlsx" class="hd" onchange="fs('f4','t4','b4')">
+    <button class="btn bp" id="b4" onclick="go('ca')" disabled>生成汇总</button>
+    <div class="rs" id="r4"></div>
+  </div>
+</div>
