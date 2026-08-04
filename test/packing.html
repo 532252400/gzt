@@ -43,7 +43,7 @@ input.ti:focus{border-color:#3182ce}
 <tr><td>瓶身高</td><td><input class="ti" id="pkBaseH" type="number" value="60" style="width:70px;text-align:center"> mm</td>
 <td>底厚</td><td><input class="ti" id="pkAddH" type="number" value="10" style="width:70px;text-align:center"> mm</td></tr>
 </table>
-<div class="section-tit">&#x1F4E6; 包装参数</div>
+<div class="section-tit">&#x1F4E6; 包装参数（填写实际）</div>
 <table>
 <tr><td>内盒高</td><td><input class="ti" id="pkBoxH" type="number" value="14.6" style="width:70px;text-align:center"> cm</td>
 <td>外箱盒数</td><td><input class="ti" id="pkCarton" type="number" value="6" style="width:70px;text-align:center"> 盒/箱</td></tr>
@@ -113,10 +113,13 @@ var sku3="BZ-"+base+r3;
 var sku4="BZ-"+base+r4;
 var n1="珍珠棉"+name+" "+total+"孔 孔直径"+hole+"mm "+len.toFixed(0)+"\u00d7"+wid.toFixed(0)+"\u00d7"+totalH+"mm（"+baseH+"+"+addH+"）间距"+gap+"mm 边距"+edge+"mm";
 if(document.getElementById("pkExhaust").checked)n1+=" 做排气孔";
+var v1=(len*wid*totalH)/1000000000;
 var n2="珍珠棉"+name+" "+len.toFixed(0)+"\u00d7"+wid.toFixed(0)+"\u00d7"+addH+"mm 盖板";
+var v2=(len*wid*addH)/1000000000;
+var v3=((len/10+1)*(wid/10+1)*(boxH+1))/1000000;
 var n3="内盒"+name+" 内径 长"+(len/10).toFixed(1)+"cm 宽"+(wid/10).toFixed(1)+"cm 高"+boxH+"cm";
 var n4="外箱"+name+" "+carton+"盒一箱";
-var t1=sku1+" "+n1,t2=sku2+" "+n2,t3=sku3+" "+n3,t4=sku4+" "+n4;
+var t1=sku1+" "+n1+" | "+v1.toFixed(3)+"m³",t2=sku2+" "+n2+" | "+v2.toFixed(3)+"m³",t3=sku3+" "+n3+" | "+v3.toFixed(3)+"m³",t4=sku4+" "+n4;
 var output=t1+"\n"+t2+"\n"+t3+"\n"+t4;
 document.getElementById("pkOutput").innerText=output;
 document.getElementById("pkTemplates").style.display="block";
