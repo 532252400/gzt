@@ -1,0 +1,647 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>工厂工作台</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;color:#1a202c;display:flex;height:100vh;overflow:hidden}
+.sidebar{width:200px;background:#1a202c;color:#fff;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sidebar .logo{padding:16px 18px;font-size:15px;font-weight:700;border-bottom:1px solid #2d3748}
+.sidebar .logo .ver{font-size:10px;color:#a0aec0;font-weight:400;margin-left:4px}
+.sidebar .nav{flex:1;overflow-y:auto;padding:8px 0}
+.nav-item{display:flex;align-items:center;gap:8px;padding:10px 18px;font-size:13px;cursor:pointer;color:#cbd5e0;transition:.12s;user-select:none}
+.nav-item:hover{background:#2d3748;color:#fff}
+.nav-item.act{background:#3182ce;color:#fff;font-weight:600}
+.nav-item .arrow{margin-left:auto;font-size:9px;color:#718096;transition:.2s}
+.nav-item.act .arrow{color:#fff}
+.nav-sub{overflow:hidden;max-height:0;transition:max-height .25s}
+.nav-sub.open{max-height:300px}
+.nav-sub .nav-item{padding-left:36px;font-size:12px}
+.sidebar .foot{padding:12px 18px;border-top:1px solid #2d3748;font-size:10px;color:#718096}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.topbar{height:48px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 24px;font-size:14px;font-weight:600;color:#2d3748;flex-shrink:0}
+.content{flex:1;padding:20px;overflow-y:auto}
+.panel{display:none}
+.panel.act{display:block}
+.mtr{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.mtc{background:#fff;border-radius:10px;padding:16px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px}
+.mtc .mi{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.mtc .mn{font-size:22px;font-weight:700;line-height:1.2}
+.mtc .ml{font-size:11px;color:#718096}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden;transition:box-shadow .2s}
+.card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.panel-card{max-width:500px}
+.card-hd{padding:14px 18px 10px;border-bottom:1px solid #edf2f7;display:flex;align-items:center;gap:8px}
+.card-hd .ico{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0}
+.card-hd h3{font-size:13px;font-weight:600;color:#2d3748}
+.card-hd .tag{font-size:10px;padding:2px 8px;border-radius:3px;margin-left:auto;font-weight:500}
+.tag-blue{background:#ebf4ff;color:#3182ce}.tag-green{background:#f0fff4;color:#38a169}.tag-yellow{background:#fffbeb;color:#d69e2e}
+.tag-purple{background:#f5f0ff;color:#7c3aed}.tag-red{background:#fff5f5;color:#e53e3e}
+.card-bd{padding:14px 18px 18px}
+.card-bd p{font-size:12px;color:#718096;margin-bottom:10px;line-height:1.5}
+.upload-zone{border:2px dashed #e2e8f0;border-radius:6px;padding:12px;text-align:center;font-size:12px;color:#a0aec0;cursor:pointer;margin-bottom:8px;transition:.15s}
+.upload-zone:hover{border-color:#3182ce;color:#3182ce;background:#f7fafc}
+.upload-zone.has{border-color:#38a169;color:#38a169;background:#f0fff4}
+.btn{padding:7px 18px;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;transition:.15s}
+.btn-blue{background:#3182ce;color:#fff}.btn-green{background:#38a169;color:#fff}.btn-yellow{background:#d69e2e;color:#fff}
+.btn-purple{background:#5a67d8;color:#fff}.btn-red{background:#e53e3e;color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}.btn:hover:not(:disabled){filter:brightness(1.1)}
+.btn-sm{padding:4px 12px;font-size:11px}
+.result-box{background:#f0fff4;border:1px solid #c6f6d5;border-radius:6px;padding:10px;font-size:12px;color:#276749;line-height:1.6;margin-top:8px;display:none;white-space:pre-wrap;max-height:300px;overflow-y:auto}
+.result-box.show{display:block}
+.result-box.er{background:#fff5f5;border-color:#fed7d7;color:#9b2c2c}
+.result-box.wa{background:#fffbeb;border-color:#fefcbf;color:#975a16}
+.ld{display:inline-block;width:12px;height:12px;border:2px solid #e2e8f0;border-top-color:#3182ce;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:3px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ti{width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;margin-bottom:8px;transition:.15s}
+.ti:focus{outline:none;border-color:#3182ce;box-shadow:0 0 0 3px rgba(49,130,206,.15)}
+.quick-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.quick-links a{font-size:12px;color:#3182ce;text-decoration:none;padding:4px 12px;background:#ebf4ff;border-radius:4px;transition:.15s}
+.quick-links a:hover{background:#3182ce;color:#fff}
+.iframe-panel iframe{width:100%;height:calc(100vh - 110px);border:none;border-radius:8px}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:#f7fafc;padding:8px 10px;text-align:left;font-weight:600;border-bottom:2px solid #e2e8f0;font-size:11px;color:#718096}
+.tbl td{padding:8px 10px;border-bottom:1px solid #edf2f7}
+.tbl tr:hover td{background:#f7fafc}
+
+.result-box.ok{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;display:block}
+.result-box.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}
+.del-eta-btn:hover{background:#fee2e2}
+
+</style></head><body>
+
+<div class="sidebar">
+<div class="logo">&#x1F527; 工厂工作台<span class="ver">稳定版 v20260720</span></div>
+<div class="nav">
+<div class="nav-item act" data-panel="home">&#x1F3E0; 首页</div>
+
+<div class="nav-item has-sub" data-sub="sub-label">&#x1F3F7; 标签打印 <span class="arrow">&#x25B6;</span></div>
+<div class="nav-sub" id="sub-label">
+<div class="nav-item" data-panel="lbl100">100×100 标签</div>
+<div class="nav-item" data-panel="lbl30">100×30 标签</div>
+</div>
+
+<div class="nav-item has-sub" data-sub="sub-ship">&#x1F4E6; 发货管理 <span class="arrow">&#x25B6;</span></div>
+<div class="nav-sub" id="sub-ship">
+<div class="nav-item" data-panel="us">美国发货汇总</div>
+<div class="nav-item" data-panel="ca">加拿大发货</div>
+<div class="nav-item" data-panel="shipment">批次上传</div>
+</div>
+
+<div class="nav-item has-sub" data-sub="sub-scan">&#x1F4F1; 扫码发货 <span class="arrow">&#x25B6;</span></div>
+<div class="nav-sub" id="sub-scan">
+<div class="nav-item" data-panel="scan">工人扫码</div>
+<div class="nav-item" data-panel="scan_admin">管理后台</div>
+</div>
+
+<div class="nav-item has-sub" data-sub="sub-ws">&#x1F527; 车间加工 <span class="arrow">&#x25B6;</span></div>
+<div class="nav-sub" id="sub-ws">
+<div class="nav-item" data-panel="workshop">加工列表(手机端)</div>
+<div class="nav-item" data-panel="workshop_board">车间看板</div>
+<div class="nav-item" data-panel="workshop_admin">&#x1F6E1; 管理</div>
+</div>
+
+<div class="nav-item has-sub" data-sub="sub-cap">&#x1F4CA; 产能工具 <span class="arrow">&#x25B6;</span></div>
+<div class="nav-sub" id="sub-cap">
+<div class="nav-item" data-panel="capacity_calc">&#x26A1; 产能计算</div>
+<div class="nav-item" data-panel="capacity_entry">&#x1F4DD; 产能录入</div>
+<div class="nav-item" data-panel="capacity_query">&#x1F50D; 产能查询</div>
+</div>
+
+<div class="nav-item" data-panel="packing">&#x1F4D0; 设计包装</div>
+<div class="nav-item" data-panel="check">&#x2705; 收货核对</div>
+<div class="nav-item" data-panel="track">&#x1F69A; 物流跟踪</div>
+<div class="nav-item" data-panel="ai">&#x1F916; AI助手</div>
+</div>
+
+</div>
+
+<div class="main">
+<div class="topbar"><span id="topTitle">&#x1F3E0; 首页</span></div>
+<div class="content">
+
+<!-- ===== 首页 ===== -->
+<div class="panel act" id="panel-home">
+<div class="mtr">
+<div class="mtc"><div class="mi" style="background:#ebf4ff;color:#3182ce">&#x1F4CB;</div><div><div class="mn" id="wsPending">-</div><div class="ml">待处理</div></div></div>
+<div class="mtc"><div class="mi" style="background:#f0fff4;color:#38a169">&#x1F527;</div><div><div class="mn" id="wsProcessing">-</div><div class="ml">加工中</div></div></div>
+<div class="mtc"><div class="mi" style="background:#fffbeb;color:#d69e2e">&#x2705;</div><div><div class="mn" id="wsToday">-</div><div class="ml">今日完成</div></div></div>
+<div class="mtc"><div class="mi" style="background:#fff5f5;color:#e53e3e">&#x2B50;</div><div><div class="mn" id="wsPriority">-</div><div class="ml">优先单</div></div></div>
+</div>
+
+<div class="grid-4">
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F3F7;</div><h3>100×100 打印标签</h3><span class="tag tag-blue">手机壳</span></div>
+<div class="card-bd">
+<p>上传手机壳装箱Excel，生成10×10cm打印标签。</p>
+<div class="upload-zone" onclick="document.getElementById('f1').click()" id="z1">&#x1F4C4; 选择 Excel 文件</div>
+<input type="file" accept=".xlsx,.xls" id="f1" style="display:none" onchange="fs('f1','z1','b1')">
+<button class="btn btn-blue btn-sm" id="b1" disabled onclick="go('lbl100')">生成标签</button>
+<div class="result-box" id="r1"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#38a169">&#x1F3F7;</div><h3>100×30 提货标签</h3><span class="tag tag-green">司机信息</span></div>
+<div class="card-bd">
+<p>上传司机提货信息Excel，生成提货标签。</p>
+<div class="upload-zone" onclick="document.getElementById('f2').click()" id="z2">&#x1F4C4; 选择 Excel 文件</div>
+<input type="file" accept=".xlsx,.xls" id="f2" style="display:none" onchange="fs('f2','z2','b2')">
+<button class="btn btn-green btn-sm" id="b2" disabled onclick="go('lbl30')">生成标签</button>
+<div class="result-box" id="r2"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#d69e2e">&#x1F4CA;</div><h3>美国发货汇总</h3><span class="tag tag-yellow">分组小计</span></div>
+<div class="card-bd">
+<p>上传发货单Excel，按区域分组汇总。</p>
+<div class="upload-zone" onclick="document.getElementById('f3').click()" id="z3">&#x1F4C4; 选择 Excel 文件</div>
+<input type="file" accept=".xlsx,.xls" id="f3" style="display:none" onchange="fs('f3','z3','b3')">
+<button class="btn btn-yellow btn-sm" id="b3" disabled onclick="go('us')">生成汇总</button>
+<div class="result-box" id="r3"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F4CA;</div><h3>加拿大发货汇总</h3><span class="tag tag-blue">直接清单</span></div>
+<div class="card-bd">
+<p>上传发货单Excel，生成直接清单。</p>
+<div class="upload-zone" onclick="document.getElementById('f4').click()" id="z4">&#x1F4C4; 选择 Excel 文件</div>
+<input type="file" accept=".xlsx,.xls" id="f4" style="display:none" onchange="fs('f4','z4','b4')">
+<button class="btn btn-blue btn-sm" id="b4" disabled onclick="go('ca')">生成汇总</button>
+<div class="result-box" id="r4"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#e53e3e">&#x2705;</div><h3>收货单据核对</h3><span class="tag tag-yellow">对数据</span></div>
+<div class="card-bd">
+<p>上传Receiving Record，核对通知收货 vs 到货。</p>
+<div class="upload-zone" onclick="document.getElementById('f5').click()" id="z5">&#x1F4C4; 选择 Excel 文件</div>
+<input type="file" accept=".xlsx,.xls" id="f5" style="display:none" onchange="fs('f5','z5','b5')">
+<button class="btn btn-red btn-sm" id="b5" disabled onclick="go('rc')">开始核对</button>
+<div class="result-box" id="r5"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#5a67d8">&#x1F4E6;</div><h3>扫码批次上传</h3><span class="tag tag-purple">发货单</span></div>
+<div class="card-bd">
+<p>上传发货单Excel，自动解析SKU条码。</p>
+<input class="ti" id="batchName" placeholder="批次名称（选填）">
+<div class="upload-zone" onclick="document.getElementById('f8').click()" id="z8">&#x1F4C4; 选择 Excel 文件</div>
+<input type="file" accept=".xlsx,.xls" id="f8" style="display:none" onchange="fs('f8','z8','b8')">
+<button class="btn btn-purple btn-sm" id="b8" disabled onclick="uploadBatch()">&#x1F4E4; 上传批次</button>
+<div class="result-box" id="r8"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#d69e2e">&#x1F527;</div><h3>车间加工单上传</h3><span class="tag tag-yellow">加工单</span></div>
+<div class="card-bd">
+<p>上传加工单Excel，导入车间加工作业。</p>
+<input class="ti" id="batchName2" placeholder="批次名称（选填）">
+<div class="upload-zone" onclick="document.getElementById('f9').click()" id="z9">&#x1F4C4; 选择 Excel 文件</div>
+<input type="file" accept=".xlsx,.xls" id="f9" style="display:none" onchange="fs('f9','z9','b9')">
+<button class="btn btn-yellow btn-sm" id="b9" disabled onclick="uploadJobs()">&#x1F4E4; 上传加工单</button>
+<div class="result-box" id="r9"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F69A;</div><h3>物流跟踪</h3><span class="tag tag-blue">全球追踪</span></div>
+<div class="card-bd">
+<p>输入物流单号查询状态。</p>
+<div style="display:flex;gap:8px">
+<input class="ti" id="trackNum" placeholder="输入物流单号" style="margin-bottom:0">
+<button class="btn btn-blue btn-sm" id="trackBtn" onclick="track()" style="flex-shrink:0">&#x1F50D; 查询</button>
+</div>
+<div class="result-box" id="r6"></div>
+</div></div>
+
+<div class="card">
+<div class="card-hd"><div class="ico" style="background:#5a67d8">&#x1F916;</div><h3>AI助手</h3><span class="tag tag-purple">问答</span></div>
+<div class="card-bd">
+<p>输入问题获取解答。</p>
+<div style="display:flex;gap:8px">
+<input class="ti" id="qt" placeholder="输入问题..." style="margin-bottom:0" onkeydown="if(event.key==='Enter')qq()">
+<button class="btn btn-purple btn-sm" onclick="qq()" style="flex-shrink:0">&#x1F4AC; 提问</button>
+</div>
+<div class="result-box" id="r7"></div>
+</div></div>
+
+</div><!-- grid-4 end -->
+
+<div class="card" style="margin-top:16px">
+<div class="card-hd"><div class="ico" style="background:#718096">&#x1F517;</div><h3>快速入口</h3></div>
+<div class="card-bd">
+<div class="quick-links">
+<a href="#" data-panel="scan">&#x1F4F1; 工人扫码</a>
+<a href="#" data-panel="scan_admin">&#x1F4CA; 管理后台</a>
+<a href="#" data-panel="workshop">&#x1F4CB; 加工列表</a>
+<a href="#" data-panel="workshop_board">&#x1F4CB; 车间看板</a>
+<a href="#" data-panel="capacity">&#x1F4CA; 产能查询</a>
+<a href="#" data-panel="packing">&#x1F4D0; 设计包装</a>
+</div>
+</div></div>
+
+</div><!-- panel-home -->
+
+<!-- ===== 子面板 ===== -->
+<div class="panel" id="panel-lbl100"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F3F7;</div><h3>100×100 打印标签</h3></div><div class="card-bd"><p>上传手机壳装箱Excel，生成10×10cm打印标签。</p><div class="upload-zone" onclick="document.getElementById('f1a').click()" id="z1a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f1a" style="display:none" onchange="fs('f1a','z1a','b1a')"><button class="btn btn-blue" id="b1a" disabled onclick="doPost('lbl100','f1a','b1a','r1a')">生成标签</button><div class="result-box" id="r1a"></div></div></div></div>
+
+<div class="panel" id="panel-lbl30"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#38a169">&#x1F3F7;</div><h3>100×30 提货标签</h3></div><div class="card-bd"><p>上传司机提货信息Excel，生成提货标签。</p><div class="upload-zone" onclick="document.getElementById('f2a').click()" id="z2a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f2a" style="display:none" onchange="fs('f2a','z2a','b2a')"><button class="btn btn-green" id="b2a" disabled onclick="doPost('lbl30','f2a','b2a','r2a')">生成标签</button><div class="result-box" id="r2a"></div></div></div></div>
+
+<div class="panel" id="panel-us"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#d69e2e">&#x1F4CA;</div><h3>美国发货汇总</h3></div><div class="card-bd"><p>上传发货单Excel，按区域分组汇总。</p><div class="upload-zone" onclick="document.getElementById('f3a').click()" id="z3a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f3a" style="display:none" onchange="fs('f3a','z3a','b3a')"><button class="btn btn-yellow" id="b3a" disabled onclick="doPost('us','f3a','b3a','r3a')">生成汇总</button><div class="result-box" id="r3a"></div></div></div></div>
+
+<div class="panel" id="panel-ca"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F4CA;</div><h3>加拿大发货汇总</h3></div><div class="card-bd"><p>上传发货单Excel，生成直接清单。</p><div class="upload-zone" onclick="document.getElementById('f4a').click()" id="z4a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f4a" style="display:none" onchange="fs('f4a','z4a','b4a')"><button class="btn btn-blue" id="b4a" disabled onclick="doPost('ca','f4a','b4a','r4a')">生成汇总</button><div class="result-box" id="r4a"></div></div></div></div>
+
+<div class="panel" id="panel-shipment"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#5a67d8">&#x1F4E6;</div><h3>扫码批次上传</h3></div><div class="card-bd"><p>上传发货单Excel，自动解析SKU条码。</p><div class="upload-zone" onclick="document.getElementById('f8a').click()" id="z8a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f8a" style="display:none" onchange="fs('f8a','z8a','b8a')"><button class="btn btn-purple" id="b8a" disabled onclick="doShip('f8a','b8a','r8a')">&#x1F4E4; 上传批次</button><div class="result-box" id="r8a"></div></div></div></div>
+
+<div class="panel" id="panel-check"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#e53e3e">&#x2705;</div><h3>收货单据核对</h3></div><div class="card-bd"><p>上传Receiving Record，核对通知收货 vs 到货。</p><div class="upload-zone" onclick="document.getElementById('f5a').click()" id="z5a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f5a" style="display:none" onchange="fs('f5a','z5a','b5a')"><button class="btn btn-red" id="b5a" disabled onclick="doPost('rc','f5a','b5a','r5a')">开始核对</button><div class="result-box" id="r5a"></div></div></div></div>
+
+<div class="panel" id="panel-track"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F69A;</div><h3>物流跟踪</h3></div><div class="card-bd"><p>输入物流单号查询状态。</p><div style="display:flex;gap:8px"><input class="ti" id="trackNum2" placeholder="输入物流单号" style="margin-bottom:0"><button class="btn btn-blue btn-sm" onclick="track2()" style="flex-shrink:0">&#x1F50D; 查询</button></div><div class="result-box" id="r6a"></div></div></div></div>
+
+<div class="panel" id="panel-ai"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#5a67d8">&#x1F916;</div><h3>AI助手</h3></div><div class="card-bd"><p>输入问题获取解答。</p><div style="display:flex;gap:8px"><input class="ti" id="qt2" placeholder="输入问题..." style="margin-bottom:0" onkeydown="if(event.key==='Enter')qq2()"><button class="btn btn-purple btn-sm" onclick="qq2()" style="flex-shrink:0">&#x1F4AC; 提问</button></div><div class="result-box" id="r7a"></div></div></div></div>
+
+<!-- ===== 设计包装 ===== -->
+<div class="panel" id="panel-packing">
+<div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#d69e2e">&#x1F4D0;</div><h3>珍珠棉设计计算</h3><span class="tag tag-yellow">包装</span></div>
+<div class="card-bd">
+<p>输入参数，自动计算珍珠棉尺寸和运费。</p>
+<table style="font-size:12px;margin-bottom:12px">
+<tr><td style="padding:4px 8px 4px 0;color:#718096">孔直径</td><td><input class="ti" id="pkHole" type="number" value="60" style="width:80px;margin:0;text-align:center"> mm</td>
+<td style="padding:4px 8px 4px 16px;color:#718096">长放几个</td><td><input class="ti" id="pkCols" type="number" value="5" style="width:80px;margin:0;text-align:center"></td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:#718096">宽放几个</td><td><input class="ti" id="pkRows" type="number" value="3" style="width:80px;margin:0;text-align:center"></td>
+<td style="padding:4px 8px 4px 16px;color:#718096">间距</td><td><input class="ti" id="pkGap" type="number" value="10" style="width:80px;margin:0;text-align:center"> mm</td></tr>
+<tr><td style="padding:4px 8px 4px 0;color:#718096">边距</td><td><input class="ti" id="pkEdge" type="number" value="10" style="width:80px;margin:0;text-align:center"> mm</td>
+<td style="padding:4px 8px 4px 16px;color:#718096">高度</td><td><input class="ti" id="pkHeight" type="number" value="180" style="width:80px;margin:0;text-align:center"> mm</td></tr>
+</table>
+<button class="btn btn-yellow" onclick="calcPacking()">&#x1F4D0; 计算</button>
+<div class="result-box" id="pkResult" style="margin-top:12px"></div>
+<div id="pkDetail" style="margin-top:10px;display:none">
+<h4 style="font-size:12px;margin-bottom:6px;color:#2d3748">计算结果</h4>
+<table class="tbl">
+<tr><th>项目</th><th>数值</th><th>说明</th></tr>
+<tr><td>总数量</td><td id="pkQty">-</td><td>孔数 = 长个数 × 宽个数</td></tr>
+<tr><td>珍珠棉长</td><td id="pkLen">-</td><td>孔直径 × 长个数 + 间距 × (长-1) + 边距 × 2</td></tr>
+<tr><td>珍珠棉宽</td><td id="pkWid">-</td><td>孔直径 × 宽个数 + 间距 × (宽-1) + 边距 × 2</td></tr>
+<tr><td>珍珠棉高</td><td id="pkHei">-</td><td>底部高度</td></tr>
+<tr><td>体积</td><td id="pkVol">-</td><td>m³ (增加10mm余量)</td></tr>
+
+</table>
+</div>
+</div></div>
+</div>
+
+<!-- ===== iframe 子页面 ===== -->
+<div class="panel iframe-panel" id="panel-scan"><iframe src="/scan"></iframe></div>
+<div class="panel iframe-panel" id="panel-scan_admin"><iframe src="/scan_admin"></iframe></div>
+<div class="panel iframe-panel" id="panel-workshop"><iframe src="/workshop"></iframe></div>
+<div class="panel iframe-panel" id="panel-workshop_board" data-src="/workshop_board"></div>
+
+<!-- ===== 产能计算 ===== -->
+<div class="panel" id="panel-capacity_calc">
+<div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">⚡</div><h3>产能计算</h3></div>
+<div class="card-bd">
+<p>输入SKU、数量和人数，自动估算用时。</p>
+<div style="margin-bottom:8px"><label style="font-size:12px;color:#666">SKU</label><input class="ti" id="calcSku" placeholder="例：PW-MSG16-001"></div>
+<div style="display:flex;gap:10px;margin-bottom:8px">
+<div style="flex:1"><label style="font-size:12px;color:#666">数量</label><input class="ti" id="calcQty" type="number" min="1" placeholder="1000"></div>
+<div style="flex:1"><label style="font-size:12px;color:#666">人数</label><input class="ti" id="calcPeople" type="number" min="1" value="1"></div>
+</div>
+<button class="btn btn-blue" onclick="doCalc()" style="width:100%;margin-bottom:8px">▶ 计算用时</button>
+<div class="result-box" id="calcResult"></div>
+</div></div></div>
+
+<!-- ===== 产能录入 ===== -->
+<div class="panel" id="panel-capacity_entry">
+<div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#38a169">📝</div><h3>产能录入</h3></div>
+<div class="card-bd">
+<p>输入实际生产数据，自动计算效率（套/人/小时）。</p>
+<div style="margin-bottom:8px"><label style="font-size:12px;color:#666">SKU</label><input class="ti" id="etaSku" placeholder="例：PW-MSG16-001"></div>
+<div style="display:flex;gap:10px;margin-bottom:8px">
+<div style="flex:1"><label style="font-size:12px;color:#666">完成数量</label><input class="ti" id="etaQty" type="number" min="1" placeholder="300"></div>
+<div style="flex:1"><label style="font-size:12px;color:#666">人数</label><input class="ti" id="etaPeople" type="number" min="1" value="1"></div>
+<div style="flex:1"><label style="font-size:12px;color:#666">用时(小时)</label><input class="ti" id="etaHours" type="number" step="0.1" min="0.1" placeholder="4"></div>
+</div>
+<div style="font-size:12px;color:#666;margin-bottom:8px">自动计算效率：<span id="etaCalcPreview">-</span></div>
+<div style="margin-bottom:8px"><label style="font-size:12px;color:#666">备注</label><input class="ti" id="etaNote" placeholder="如：3人4小时完成300个"></div>
+<button class="btn btn-green" onclick="saveEta()" style="width:100%;margin-bottom:8px">💾 保存</button>
+<div class="result-box" id="etaResult"></div>
+<div style="margin-top:8px"><div style="font-size:12px;color:#666;margin-bottom:4px">已录入的产能：</div><div id="etaList" style="max-height:200px;overflow-y:auto;font-size:12px;line-height:1.8"></div></div>
+</div></div></div>
+
+<!-- ===== 产能查询 ===== -->
+<div class="panel" id="panel-capacity_query">
+<div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#4361ee">🔍</div><h3>产能查询</h3></div>
+<div class="card-bd">
+<p>输入SKU搜索产能数据。</p>
+<input class="ti" id="etaQuerySku" placeholder="输入SKU搜索..." oninput="searchEtaQuery()" style="margin-bottom:8px">
+<div style="max-height:350px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:4px 0;margin-bottom:8px">
+<div id="etaQueryList" style="font-size:13px;color:#999;text-align:center;padding:20px">输入SKU搜索...</div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center">
+<button class="btn btn-red btn-sm" onclick="deleteSelectedEtaQuery()" id="etaQueryDelBtn" style="display:none">🗑 删除选中</button>
+<span id="etaQueryCount" style="font-size:12px;color:#999"></span>
+</div>
+</div></div></div>
+
+<!-- ===== 加工管理 ===== -->
+<div class="panel iframe-panel" id="panel-workshop_admin" data-src="/workshop_admin"></div>
+
+<!-- ===== 旧产能查询（保留兼容） ===== -->
+<div class="panel" id="panel-capacity">
+<div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F4CA;</div><h3>产能查询</h3></div>
+<div class="card-bd"><p>输入SKU查询产能数据。</p>
+<div style="display:flex;gap:8px;margin-bottom:10px"><input class="ti" id="capSku" placeholder="输入SKU" style="margin-bottom:0;text-transform:uppercase" onkeydown="if(event.key==='Enter')queryCapacity()"><button class="btn btn-blue btn-sm" onclick="queryCapacity()">&#x1F50D; 查询</button></div>
+<div class="result-box" id="capResult"></div><div id="capList"></div></div></div>
+</div>
+
+</div></div>
+
+<script>
+
+var titles={home:"首页",lbl100:"100×100 标签",lbl30:"100×30 标签",us:"美国发货",ca:"加拿大发货",shipment:"批次上传",scan:"工人扫码",scan_admin:"管理后台",workshop:"加工列表",workshop_board:"车间看板",capacity:"产能查询",packing:"设计包装",check:"收货核对",track:"物流跟踪",ai:"AI助手",capacity_calc:"产能计算",capacity_entry:"产能录入",capacity_query:"产能查询",workshop_admin:"管理"};
+
+function switchPanel(p){
+document.querySelectorAll(".panel").forEach(function(x){x.classList.remove("act")});
+var t=document.getElementById("panel-"+p);if(t){t.classList.add("act");lazyLoadPanel(p);}
+document.querySelectorAll(".nav-item").forEach(function(x){x.classList.remove("act")});
+var ni=document.querySelector('.nav-item[data-panel="'+p+'"]');if(ni)ni.classList.add("act");
+document.getElementById("topTitle").textContent=titles[p]||p;
+document.querySelector(".content").scrollTop=0;
+}
+
+document.querySelectorAll('.nav-item[data-panel]').forEach(function(el){
+el.addEventListener('click',function(e){e.stopPropagation();switchPanel(this.getAttribute('data-panel'))});
+});
+
+document.querySelectorAll('.has-sub').forEach(function(el){
+el.addEventListener('click',function(){var sub=document.getElementById(this.getAttribute('data-sub'));if(sub){sub.classList.toggle('open');this.querySelector('.arrow').textContent=sub.classList.contains('open')?'\u25BC':'\u25B6'}});
+});
+
+document.querySelectorAll('.quick-links a[data-panel]').forEach(function(el){
+el.addEventListener('click',function(e){e.preventDefault();switchPanel(this.getAttribute('data-panel'))});
+});
+
+function fs(fid,zid,bid){var f=document.getElementById(fid),z=document.getElementById(zid),b=document.getElementById(bid);if(f&&f.files[0]&&z){z.textContent=f.files[0].name;z.classList.add('has');if(b)b.disabled=false;}}
+function s(id,c,m){var r=typeof id==='string'?document.getElementById(id):id;if(!r)return;r.className='result-box '+c+' show';r.textContent=m;}
+
+async function doPost(action,fid,bid,rid){
+var fi=document.getElementById(fid),btn=document.getElementById(bid),res=document.getElementById(rid);
+if(!fi||!btn||!res)return;if(!fi.files||!fi.files[0])return;
+btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s(res,'wa','\u23F3 ...');
+var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action',action);
+try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s(res,d.status==='ok'?'ok':'er',d.status==='ok'?d.message:'\u274C '+d.message)}
+catch(e){s(res,'er','\u274C '+e.message)}
+btn.disabled=false;btn.textContent=action==='rc'?'\u6838\u5BF9':'\u751F\u6210';
+}
+
+function go(a){var m={lbl100:['f1','b1','r1'],lbl30:['f2','b2','r2'],us:['f3','b3','r3'],ca:['f4','b4','r4'],rc:['f5','b5','r5']}[a];doPost(a,m[0],m[1],m[2])}
+
+async function doShip(fid,bid,rid){
+var fi=document.getElementById(fid),btn=document.getElementById(bid),res=document.getElementById(rid);
+btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s(res,'wa','\u23F3 ...');
+var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','shipment');fd.append('batch_name','\u6279\u6B21'+new Date().toLocaleDateString());
+try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s(res,d.status==='ok'?'ok':'er',d.message)}
+catch(e){s(res,'er','\u274C '+e.message)}btn.disabled=false;btn.textContent='\u4E0A\u4F20';
+}
+
+async function uploadBatch(){
+var fi=document.getElementById('f8'),btn=document.getElementById('b8'),nm=document.getElementById('batchName').value.trim()||'\u6279\u6B21'+new Date().toLocaleDateString();
+btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s('r8','wa','\u23F3 ...');
+var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','shipment');fd.append('batch_name',nm);
+try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s('r8',d.status==='ok'?'ok':'er',d.message);if(d.status==='ok')loadMetrics()}
+catch(e){s('r8','er','\u274C '+e.message)}btn.disabled=false;btn.textContent='\u{1F4E4} \u4E0A\u4F20\u6279\u6B21';
+}
+
+async function uploadJobs(){
+var fi=document.getElementById('f9'),btn=document.getElementById('b9'),nm=document.getElementById('batchName2').value.trim()||'\u52A0\u5DE5\u5355'+new Date().toLocaleDateString();
+btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s('r9','wa','\u23F3 ...');
+var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','import_jobs');fd.append('batch_name',nm);
+try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s('r9',d.status==='ok'?'ok':'er',d.message);if(d.status==='ok')loadMetrics()}
+catch(e){s('r9','er','\u274C '+e.message)}btn.disabled=false;btn.textContent='\u{1F4E4} \u4E0A\u4F20\u52A0\u5DE5\u5355';
+}
+
+async function track(){var num=document.getElementById('trackNum').value.trim();if(!num){s('r6','er','\u274C \u8F93\u5165\u5355\u53F7');return}s('r6','wa','\u23F3 ...');try{var r=await fetch('/track?num='+encodeURIComponent(num));var d=await r.json();s('r6',d.status==='ok'?'ok':'er',d.message)}catch(e){s('r6','er','\u274C '+e.message)}}
+async function track2(){var num=document.getElementById('trackNum2').value.trim();if(!num){s('r6a','er','\u274C \u8F93\u5165\u5355\u53F7');return}s('r6a','wa','\u23F3 ...');try{var r=await fetch('/track?num='+encodeURIComponent(num));var d=await r.json();s('r6a',d.status==='ok'?'ok':'er',d.message)}catch(e){s('r6a','er','\u274C '+e.message)}}
+async function qq(){var t=document.getElementById('qt').value;if(!t){s('r7','er','\u274C \u8F93\u5165\u95EE\u9898');return}s('r7','wa','\u23F3 ...');try{var r=await fetch('/q?q='+encodeURIComponent(t));var d=await r.json();s('r7',d.status==='ok'?'ok':'er',d.message)}catch(e){s('r7','er','\u274C '+e.message)}}
+async function qq2(){var t=document.getElementById('qt2').value;if(!t){s('r7a','er','\u274C \u8F93\u5165\u95EE\u9898');return}s('r7a','wa','\u23F3 ...');try{var r=await fetch('/q?q='+encodeURIComponent(t));var d=await r.json();s('r7a',d.status==='ok'?'ok':'er',d.message)}catch(e){s('r7a','er','\u274C '+e.message)}}
+
+function calcPacking(){
+var hole=parseFloat(document.getElementById("pkHole").value)||60;
+var cols=parseInt(document.getElementById("pkCols").value)||5;
+var rows=parseInt(document.getElementById("pkRows").value)||3;
+var gap=parseFloat(document.getElementById("pkGap").value)||10;
+var edge=parseFloat(document.getElementById("pkEdge").value)||10;
+var height=parseFloat(document.getElementById("pkHeight").value)||180;
+var total=cols*rows;
+var len=hole*cols+gap*(cols-1)+edge*2;
+var wid=hole*rows+gap*(rows-1)+edge*2;
+var volM3=((len+10)*(wid+10)*(height+10))/1000000000;
+var shipFee=volM3*550;
+document.getElementById("pkQty").innerText=total+" 个";
+document.getElementById("pkLen").innerText=len.toFixed(0)+" mm (约"+((len+10)/10).toFixed(1)+"cm)";
+document.getElementById("pkWid").innerText=wid.toFixed(0)+" mm (约"+((wid+10)/10).toFixed(1)+"cm)";
+document.getElementById("pkHei").innerText=height+" mm";
+document.getElementById("pkVol").innerText=volM3.toFixed(5)+" m³";
+
+document.getElementById("pkDetail").style.display="block";
+s("pkResult","ok","珍珠棉 "+len.toFixed(0)+"×"+wid.toFixed(0)+"×"+height+"mm | "+total+"孔");
+}
+
+async function loadMetrics(){
+try{var r=await fetch('/workshop_data');var items=await r.json();
+var e=document.getElementById('wsPending');if(e)e.textContent=items.filter(function(i){return i.status==='pending'}).length;
+e=document.getElementById('wsProcessing');if(e)e.textContent=items.filter(function(i){return i.status==='processing'}).length;
+var todayStr=new Date();todayStr=todayStr.getFullYear()+'-'+(todayStr.getMonth()+1).toString().padStart(2,'0')+'-'+todayStr.getDate().toString().padStart(2,'0');
+e=document.getElementById('wsToday');if(e)e.textContent=items.filter(function(i){return i.status==='completed'&&i.completed&&i.completed.substr(0,10)===todayStr}).length;
+e=document.getElementById('wsPriority');if(e)e.textContent=items.filter(function(i){return i.priority==1}).length;
+}catch(e){}}
+loadMetrics();setInterval(loadMetrics,30000);
+
+async function queryCapacity(){
+var sku=document.getElementById('capSku').value.trim().toUpperCase();
+if(!sku){s('capResult','er','\u274C \u8F93\u5165SKU');return}s('capResult','wa','\u23F3 ...');
+try{var r=await fetch('/workshop_data');var items=await r.json();
+var list=items.filter(function(i){return i.sku.toUpperCase().includes(sku)});
+if(list.length===0){s('capResult','er','\u274C \u672A\u627E\u5230: '+sku);return}
+var h='<table class="tbl"><tr><th>SKU</th><th>\u54C1\u540D</th><th>\u6570\u91CF</th><th>\u72B6\u6001</th><th></th></tr>';
+list.forEach(function(i){h+='<tr><td style="font-weight:600">'+i.sku+'</td><td style="color:#718096">'+i.name+'</td><td style="text-align:right">'+i.qty+'</td><td>'+i.status+'</td><td><button class="btn btn-red btn-sm" onclick="delCap(\''+i.sku+'\')">\u{1F5D1}</button></td></tr>'});
+h+='</table>';s('capResult','ok','\u2705 \u627E\u5230 '+list.length+' \u6761');document.getElementById('capList').innerHTML=h;
+}catch(e){s('capResult','er','\u274C '+e.message)}}
+
+async function delCap(sku){if(!confirm('\u786E\u8BA4\u5220\u9664 '+sku+' \uFF1F'))return;try{var fd=new FormData();fd.append('sku',sku);fd.append('action','delete_efficiency');await fetch('/run',{method:'POST',body:fd});queryCapacity()}catch(e){}}
+
+
+function lazyLoadPanel(panelId) {
+    var panel = document.getElementById("panel-" + panelId);
+    if (!panel || panel.querySelector("iframe")) return;
+    var src = panel.getAttribute("data-src");
+    if (src) {
+        var iframe = document.createElement("iframe");
+        iframe.src = src;
+        panel.appendChild(iframe);
+    }
+}
+
+var etaQueryData = [];
+
+function escHtml(s){if(!s)return "";return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function fmtHours(h){var t=Math.round(h*60);var hr=Math.floor(t/60);var mi=t%60;if(hr>0&&mi>0)return hr+"小时"+mi+"分钟";if(hr>0)return hr+"小时";return mi+"分钟";}
+
+async function doCalc(){
+    var sku=document.getElementById("calcSku").value.trim();
+    var qty=parseInt(document.getElementById("calcQty").value);
+    var ppl=parseInt(document.getElementById("calcPeople").value)||1;
+    var res=document.getElementById("calcResult");
+    if(!sku){res.className="result-box err";res.style.display="block";res.textContent="请输入SKU";return}
+    if(!qty||qty<1){res.className="result-box err";res.style.display="block";res.textContent="请输入有效数量";return}
+    res.className="result-box";res.style.display="block";res.textContent="计算中...";
+    try{
+        var r=await fetch("/calc_capacity?sku="+encodeURIComponent(sku)+"&qty="+qty+"&people="+ppl);
+        var d=await r.json();
+        if(d.status==="ok"){
+            var h="<b>预计耗时："+fmtHours(d.hours)+"</b><br>";
+            if(d.end_time) h+="现在开始 → "+d.end_time+" 完成<br>";
+            h+="数据来源："+(d.source||"无历史记录");
+            if(d.rate) h+="<br>效率："+d.rate+" 套/人/小时";
+            res.className="result-box ok";res.innerHTML=h;
+        }else{
+            res.className="result-box err";res.innerHTML=d.message||"计算失败";
+        }
+    }catch(e){
+        res.className="result-box err";res.innerHTML="请求失败："+e.message;
+    }
+}
+
+function updateEtaPreview(){
+    var q=parseFloat(document.getElementById("etaQty").value)||0;
+    var p=parseFloat(document.getElementById("etaPeople").value)||1;
+    var h=parseFloat(document.getElementById("etaHours").value)||0;
+    var preview=document.getElementById("etaCalcPreview");
+    if(q>0&&h>0&&p>0) preview.textContent=Math.round(q/h/p)+" 套/人/小时"; else preview.textContent="-";
+}
+
+async function saveEta(){
+    var sku=document.getElementById("etaSku").value.trim();
+    var qty=parseFloat(document.getElementById("etaQty").value);
+    var ppl=parseFloat(document.getElementById("etaPeople").value)||1;
+    var hours=parseFloat(document.getElementById("etaHours").value);
+    var note=document.getElementById("etaNote").value.trim();
+    var res=document.getElementById("etaResult");
+    if(!sku){res.className="result-box err";res.style.display="block";res.textContent="请输入SKU";return}
+    if(!qty||qty<1){res.className="result-box err";res.style.display="block";res.textContent="请输入有效数量";return}
+    if(!hours||hours<0.01){res.className="result-box err";res.style.display="block";res.textContent="请输入有效用时";return}
+    res.className="result-box";res.style.display="block";res.textContent="保存中...";
+    try{
+        var fd=new FormData();
+        fd.append("action","save_efficiency");
+        fd.append("sku",sku);
+        fd.append("qty",qty);
+        fd.append("people",ppl);
+        fd.append("hours",hours);
+        if(note) fd.append("note",note);
+        var r=await fetch("/run",{method:"POST",body:fd});
+        var d=await r.json();
+        if(d.status==="ok"){
+            res.className="result-box ok";res.innerHTML="已保存！效率：<b>"+d.rate+"</b> 套/人/小时";
+            document.getElementById("etaSku").value="";
+            document.getElementById("etaQty").value="";
+            document.getElementById("etaHours").value="";
+            document.getElementById("etaNote").value="";
+            document.getElementById("etaCalcPreview").textContent="-";
+            loadEtaList();
+        }else{
+            res.className="result-box err";res.innerHTML=d.message;
+        }
+    }catch(e){
+        res.className="result-box err";res.innerHTML=e.message;
+    }
+}
+
+async function loadEtaList(){
+    var el=document.getElementById("etaList");
+    try{
+        var r=await fetch("/get_efficiency");
+        var items=await r.json();
+        if(!items||items.length===0){el.innerHTML="暂无记录";return}
+        var h="";
+        for(var i=0;i<Math.min(items.length,20);i++){
+            var it=items[i];
+            h+="<div>"+escHtml(it.sku)+" <b>"+it.rate+"</b> 套/人/时 <span>"+escHtml(it.created||"")+"</span></div>";
+        }
+        el.innerHTML=h;
+    }catch(e){el.innerHTML="加载失败";}
+}
+
+function searchEtaQuery(){
+    var kw=document.getElementById("etaQuerySku").value.trim().toLowerCase();
+    var el=document.getElementById("etaQueryList");
+    if(!kw){el.innerHTML="输入SKU搜索...";document.getElementById("etaQueryDelBtn").style.display="none";document.getElementById("etaQueryCount").textContent="";return}
+    el.innerHTML="搜索中...";
+    fetch("/query_efficiency?sku="+encodeURIComponent(kw)).then(function(r){return r.json()}).then(function(data){
+        etaQueryData=data;
+        renderEtaQueryResults();
+    }).catch(function(e){
+        el.innerHTML="加载失败："+e.message;
+    });
+}
+
+function renderEtaQueryResults(){
+    var el=document.getElementById("etaQueryList");
+    var filtered=etaQueryData;
+    if(filtered.length===0){el.innerHTML="未找到匹配的SKU";document.getElementById("etaQueryDelBtn").style.display="none";document.getElementById("etaQueryCount").textContent="";return}
+    var html="";
+    for(var i=0;i<filtered.length;i++){
+        var it=filtered[i];
+        var isManual=(it.type==="manual");
+        html+="<div style='display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid #f0f0f0'>";
+        if(isManual){
+            html+="<input type='checkbox' class='eq-cb' value='"+escHtml(it.sku)+"' style='margin-top:3px'>";
+        }else{
+            html+="<span style='width:16px;margin-top:3px'></span>";
+        }
+        html+="<div style='flex:1;font-size:13px;line-height:1.6'><b>"+escHtml(it.sku)+"</b> "+it.rate+" 套/人/时";
+        if(it.note) html+="<br><span style='color:#888;font-size:11px'>"+(isManual?"手动 ":"自动 ")+escHtml(it.note)+"</span>";
+        html+="<br><span style='color:#aaa;font-size:11px'>"+escHtml(it.created||"")+"</span>";
+        if(!isManual) html+=" <span style='color:#38a169;font-size:10px'>[加工完成]</span>";
+        html+="<button class='del-eta-btn' style='background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px' onclick=\"delEtaQueryItem('"+escHtml(it.sku).replace(/'/g,"")+"')\">X</button>";
+        html+="</div></div>";
+    }
+    el.innerHTML=html;
+    document.getElementById("etaQueryDelBtn").style.display=filtered.some(function(it){return it.type==="manual"})?"inline-block":"none";
+    document.getElementById("etaQueryCount").textContent="共 "+filtered.length+" 条"+(filtered.some(function(it){return it.type==="manual"})?"（可勾选删除手动录入）":"");
+}
+
+async function deleteSelectedEtaQuery(){
+    var cbs=document.querySelectorAll(".eq-cb:checked");
+    var skus=[];
+    cbs.forEach(function(cb){skus.push(cb.value);});
+    if(!skus.length){alert("请选择要删除的条目");return}
+    if(!confirm("确定删除选中的 "+skus.length+" 条记录？")) return;
+    var ok=0,fail=0;
+    for(var i=0;i<skus.length;i++){
+        try{
+            var fd=new FormData();
+            fd.append("action","delete_efficiency");
+            fd.append("sku",skus[i]);
+            var r=await fetch("/run",{method:"POST",body:fd});
+            var d=await r.json();
+            if(d.status==="ok") ok++; else fail++;
+        }catch(e){fail++;}
+    }
+    alert("已删除 "+ok+" 条"+(fail?"，失败 "+fail+" 条":""));
+    searchEtaQuery();
+}
+
+async function delEtaQueryItem(sku){
+    if(!confirm("确定删除 "+sku+" 的产能记录？")) return;
+    try{
+        var fd=new FormData();
+        fd.append("action","delete_efficiency");
+        fd.append("sku",sku);
+        var r=await fetch("/run",{method:"POST",body:fd});
+        var d=await r.json();
+        if(d.status==="ok"){
+            etaQueryData=etaQueryData.filter(function(it){return it.sku.toUpperCase()!==sku.toUpperCase();});
+            renderEtaQueryResults();
+        }
+    }catch(e){alert(e.message);}
+}
+
+</script>
+</body></html>
