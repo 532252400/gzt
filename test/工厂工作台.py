@@ -2196,10 +2196,10 @@ def run_us(fp):
             for i,v in enumerate(it,1): c=ows.cell(row,i,v); c.font=nf; c.border=bd; c.alignment=Alignment(vertical='center')
             row+=1
         sb=sum(i[6] for i in items); sw=sum(i[7] for i in items); sv=sum(i[8] for i in items)
-        ows.cell(row,1,rg+' \u5c0f\u8ba1 '+str(len(items))+'\u5355').font=Font(size=11); ows.cell(row,7,sb).font=Font(size=11); ows.cell(row,8,round(sw,2)).font=Font(size=11); ows.cell(row,9,round(sv,2)).font=Font(size=11)
+        ows.cell(row,5,rg+' \u5c0f\u8ba1 '+str(len(items))+'\u5355').font=Font(size=11); ows.cell(row,7,sb).font=Font(size=11); ows.cell(row,8,round(sw,2)).font=Font(size=11); ows.cell(row,9,round(sv,2)).font=Font(size=11)
         for i in range(1,11): ows.cell(row,i).border=bd; ows.cell(row,i).fill=sfl; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
         row+=1; gb+=sb; gw+=sw; gv+=sv; rg_stats[rg]=(len(items),sb,round(sw,2),round(sv,2))
-    ows.cell(row,1,'\u5408\u8ba1 '+str(len(d))+'\u5355').font=bf; ows.cell(row,7,gb).font=bf; ows.cell(row,8,round(gw,2)).font=bf; ows.cell(row,9,round(gv,2)).font=bf
+    ows.cell(row,5,'\u5408\u8ba1 '+str(len(d))+'\u5355').font=bf; ows.cell(row,7,gb).font=bf; ows.cell(row,8,round(gw,2)).font=bf; ows.cell(row,9,round(gv,2)).font=bf
     for i in range(1,11): ows.cell(row,i).border=bd; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
     for i,w in enumerate([18,12,10,22,22,8,10,14,14,20],1): ows.column_dimensions[get_column_letter(i)].width=w
     fn=re.sub(r'[-]*\d+(?:[-]*\d+)*$','',os.path.basename(fp).replace('.xlsx','')).rstrip('-').replace('\ufffd','')
