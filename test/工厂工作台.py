@@ -1,4 +1,4 @@
-import http.server, json, os, re, winreg, urllib.parse, io, webbrowser, sys, threading, time
+﻿import http.server, json, os, re, winreg, urllib.parse, io, webbrowser, sys, threading, time
 import urllib.request, socket, sqlite3, datetime
 
 # ====== 数据库 ======
@@ -2188,7 +2188,7 @@ def run_us(fp):
         for k,pv in pk.items():
             if k.startswith(doc): b+=pv['b']; w+=pv['w']; vol+=pv['v']
         rd[rg].append((doc,v[0],v[1],ch,v[3],v[4],b,round(w,2),round(vol,2),v[5]))
-    row=2; gb=0; gw=0.0; gv=0.0
+    row=2; gb=0; gw=0.0; gv=0.0; rg_stats={}
     for rg in ro:
         items=rd.get(rg,[])
         if not items: continue
@@ -2196,16 +2196,16 @@ def run_us(fp):
             for i,v in enumerate(it,1): c=ows.cell(row,i,v); c.font=nf; c.border=bd; c.alignment=Alignment(vertical='center')
             row+=1
         sb=sum(i[6] for i in items); sw=sum(i[7] for i in items); sv=sum(i[8] for i in items)
-        ows.cell(row,1,rg+' \u5c0f\u8ba1').font=Font(size=11); ows.cell(row,7,sb).font=Font(size=11); ows.cell(row,8,round(sw,2)).font=Font(size=11); ows.cell(row,9,round(sv,2)).font=Font(size=11)
+        ows.cell(row,1,rg+' \u5c0f\u8ba1 '+str(len(items))+'\u5355').font=Font(size=11); ows.cell(row,7,sb).font=Font(size=11); ows.cell(row,8,round(sw,2)).font=Font(size=11); ows.cell(row,9,round(sv,2)).font=Font(size=11)
         for i in range(1,11): ows.cell(row,i).border=bd; ows.cell(row,i).fill=sfl; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
-        row+=1; gb+=sb; gw+=sw; gv+=sv
-    ows.cell(row,1,'\u5408\u8ba1').font=bf; ows.cell(row,7,gb).font=bf; ows.cell(row,8,round(gw,2)).font=bf; ows.cell(row,9,round(gv,2)).font=bf
+        row+=1; gb+=sb; gw+=sw; gv+=sv; rg_stats[rg]=(len(items),sb,round(sw,2),round(sv,2))
+    ows.cell(row,1,'\u5408\u8ba1 '+str(len(d))+'\u5355').font=bf; ows.cell(row,7,gb).font=bf; ows.cell(row,8,round(gw,2)).font=bf; ows.cell(row,9,round(gv,2)).font=bf
     for i in range(1,11): ows.cell(row,i).border=bd; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
     for i,w in enumerate([18,12,10,22,22,8,10,14,14,20],1): ows.column_dimensions[get_column_letter(i)].width=w
     fn=re.sub(r'[-]*\d+(?:[-]*\d+)*$','',os.path.basename(fp).replace('.xlsx','')).rstrip('-').replace('\ufffd','')
     fout=os.path.join(DESKTOP,fn+'\u6c47\u603b.xlsx')
     out.save(fout)
-    return '\u2705 \u7f8e\u56fd\u53d1\u8d27\u6c47\u603b\n\u5408\u8ba1\uff1a'+str(len(d))+'\u5355\uff0c'+str(gb)+'\u7bb1\uff0c'+str(round(gw,2))+'kg\uff0c'+str(round(gv,2))+'m3\n'+'\n'.join([rg+': '+str(len(rd[rg]))+'\u5355' for rg in ro if rd[rg]])+'\n\u6587\u4ef6\uff1a'+fout
+    return '\u2705 \u7f8e\u56fd\u53d1\u8d27\u6c47\u603b\n\u5408\u8ba1\uff1a'+str(len(d))+'\u5355\uff0c'+str(gb)+'\u7bb1\uff0c'+str(round(gw,2))+'kg\uff0c'+str(round(gv,2))+'m3\n'+'\n'.join([rg+': '+str(rg_stats[rg][0])+'\u5355\uff0c'+str(rg_stats[rg][1])+'\u7bb1\uff0c'+str(rg_stats[rg][2])+'kg\uff0c'+str(rg_stats[rg][3])+'m\u00b3' for rg in ro if rg in rg_stats if rd[rg]])+'\n\u6587\u4ef6\uff1a'+fout
 
 def run_ca(fp):
     import openpyxl; from collections import OrderedDict
@@ -2244,10 +2244,10 @@ def run_ca(fp):
         vs=[doc,v[0],v[1],v[2],b,round(w,2),round(vol,2),v[3]]
         for i,val in enumerate(vs,1): c=ows.cell(row,i,val); c.font=nf; c.border=bd; c.alignment=Alignment(vertical='center')
         row+=1; gb+=b; gw+=w; gv+=vol
-    ows.cell(row,1,'\u5408\u8ba1').font=bf; ows.cell(row,5,gb).font=bf; ows.cell(row,6,round(gw,2)).font=bf; ows.cell(row,7,round(gv,2)).font=bf
+    ows.cell(row,1,'\u5408\u8ba1 '+str(len(d))+'\u5355').font=bf; ows.cell(row,5,gb).font=bf; ows.cell(row,6,round(gw,2)).font=bf; ows.cell(row,7,round(gv,2)).font=bf
     for i in range(1,9): ows.cell(row,i).border=bd; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
     for i,w in enumerate([18,14,14,10,10,14,14,20],1): ows.column_dimensions[get_column_letter(i)].width=w
-    fn=re.sub(r'[-]*\\d+(?:[-]*\\d+)*$','',os.path.basename(fp).replace('.xlsx','')).rstrip('-').replace('\ufffd','')
+    fn=os.path.basename(fp).replace('.xlsx','');idx=fn.find('\u53d1\u8d27\u5355');fn=(fn[:idx+3] if idx>=0 else fn).rstrip('-')
     fout=os.path.join(DESKTOP,fn+'\u6c47\u603b.xlsx')
     out.save(fout)
     return '\u2705 \u52a0\u62ff\u5927\u53d1\u8d27\u6c47\u603b\n\u5408\u8ba1\uff1a'+str(len(d))+'\u5355\uff0c'+str(gb)+'\u7bb1\uff0c'+str(round(gw,2))+'kg\uff0c'+str(round(gv,2))+'m3\n\u6587\u4ef6\uff1a'+fout
