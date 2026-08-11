@@ -1014,7 +1014,7 @@ async function loadBoard(){
     document.getElementById('sProcessing').textContent=processing;document.getElementById('sToday').textContent=todayItems.length;
     document.getElementById('sPriority').textContent=priority;
     document.getElementById('batchInfo').textContent='全部加工单 ('+total+'项)  |  加工中 '+processing+' 项';
-    document.getElementById('cntPending').textContent=pending;document.getElementById('cntProcessing').textContent=processing;
+    var pendingItems=items.filter(function(i){return i.status==='pending'});var pendingWithEst=pendingItems.filter(function(i){return i.est_hours}).length;var pendingWithoutEst=pending-pendingWithEst;var pendingTotalH=pendingItems.reduce(function(s,i){return s+(parseFloat(i.est_hours)||0)},0);document.getElementById('cntPending').textContent=pending+' | 共约 '+pendingTotalH.toFixed(1)+'h | 有预估'+pendingWithEst+'条，缺预估'+pendingWithoutEst+'条';document.getElementById('cntProcessing').textContent=processing;
     var pendingPri=items.filter(function(i){return i.status==='pending' && i.priority==1}).length;
     var el=document.getElementById('pendingPri');
     if(el){if(pendingPri>0){el.textContent='⭐'+pendingPri;el.style.display='inline'}else el.style.display='none'}
