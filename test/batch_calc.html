@@ -19,7 +19,7 @@ td{padding:6px 10px;border:1px solid #e2e8f0}
 <button class="btn btn-blue" onclick="document.getElementById('bf').click()">📎 选择文件上传</button>
 <div id="result"></div>
 <script>
-function fmtHours(h){var t=Math.round(h*60);var hr=Math.floor(t/60);var mi=t%60;if(hr>0&&mi>0)return hr+'小时'+mi+'分钟';if(hr>0)return hr+'小时';return mi+'分钟'}
+function fmtHours(h){var t=Math.round(h*60);var hr=Math.floor(t/60);var mi=t%60;var d=Math.floor(hr/8);var rh=hr%8;var s='';if(d>0)s+=d+'天';if(rh>0||mi>0)s+=(s?'+':'')+(rh>0?rh+'小时':'')+(mi>0?mi+'分钟':'');if(!s)s='0';return s}
 async function doBatch(){
 var file=document.getElementById('bf').files[0];if(!file)return;
 var reader=new FileReader();
@@ -49,7 +49,7 @@ var rate=r.rate?(typeof r.rate==='number'?r.rate+' 套/h':r.rate):'-';
 html+='<tr><td>'+r.sku+'</td><td>'+r.qty+'</td><td>'+r.ppl+'</td><td>'+rate+'</td><td>'+r.hours+'</td><td>'+r.end_time+'</td></tr>';
 });
 html+='</table>';
-html+='<div class=summary>📊 合计：'+d.total_qty+'套 | 共约 '+fmtHours(d.total_hours)+'</div>';
+var days=(d.total_hours/8).toFixed(1); html+='<div class=summary>📊 合计：'+d.total_qty+'套 | 共约 '+fmtHours(d.total_hours)+'（约'+days+'天）</div>';
 document.getElementById('result').innerHTML=html;
 }else{
 document.getElementById('result').innerHTML='<p style=color:#e53e3e>❌ '+(d.message||'计算失败')+'</p>';
