@@ -1,0 +1,63 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>批量产能估算</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei",sans-serif;background:#f0f2f5;padding:20px;max-width:900px;margin:0 auto}
+h3{font-size:15px;color:#2d3748;margin-bottom:12px}
+.btn{padding:10px 20px;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600}
+.btn-blue{background:#3182ce;color:#fff}
+.btn-yellow{background:#d69e2e;color:#fff}
+.tip{font-size:11px;color:#718096;margin:8px 0 16px}
+table{width:100%;font-size:12px;border-collapse:collapse;margin-top:12px;background:#fff;border-radius:6px;overflow:hidden}
+th{background:#f7fafc;padding:8px 10px;border:1px solid #e2e8f0;text-align:left;font-size:11px;color:#4a5568}
+td{padding:6px 10px;border:1px solid #e2e8f0}
+.summary{margin-top:12px;padding:10px;background:#fff;border-radius:6px;font-size:13px;font-weight:600;border:1px solid #e2e8f0}
+</style></head><body>
+<h3>📎 批量产能估算</h3>
+<p class="tip">上传 Excel 文件（E列=SKU，L列=数量），自动批量计算预计耗时</p>
+<input type="file" id="bf" accept=".xlsx,.xls" style="display:none" onchange="doBatch()">
+<button class="btn btn-blue" onclick="document.getElementById('bf').click()">📎 选择文件上传</button>
+<div id="result"></div>
+<script>
+function fmtHours(h){var t=Math.round(h*60);var hr=Math.floor(t/60);var mi=t%60;if(hr>0&&mi>0)return hr+'小时'+mi+'分钟';if(hr>0)return hr+'小时';return mi+'分钟'}
+async function doBatch(){
+var file=document.getElementById('bf').files[0];if(!file)return;
+var reader=new FileReader();
+reader.onload=async function(e){
+var data=new Uint8Array(e.target.result);
+var wb=XLSX.read(data,{type:'array'});
+var ws=wb.Sheets[wb.SheetNames[0]];
+var rows=XLSX.utils.sheet_to_json(ws,{header:1});
+if(rows.length<2){document.getElementById('result').innerHTML='<p style=color:#e53e3e>文件无数据</p>';return}
+var items=[];
+for(var i=1;i<rows.length;i++){
+var r=rows[i];if(!r||!r[4])continue;
+var sku=String(r[4]||'').trim();
+var qty=parseInt(r[11])||0;
+var ppl=parseInt(localStorage.getItem('default_people'))||1;
+if(sku&&qty>0)items.push({sku:sku,qty:qty,ppl:ppl});
+}
+if(!items.length){document.getElementById('result').innerHTML='<p style=color:#e53e3e>未找到有效数据（E列=SKU, L列=数量）</p>';return}
+document.getElementById('result').innerHTML='<p style=color:#666;text-align:center;padding:20px>⏳ 计算中...</p>';
+try{
+var resp=await fetch('/calc_batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})});
+var d=await resp.json();
+if(d.status==='ok'){
+var html='<table><tr><th>SKU</th><th>数量</th><th>人数</th><th>效率</th><th>预计耗时</th><th>完成时间</th></tr>';
+d.results.forEach(function(r){
+var rate=r.rate?(typeof r.rate==='number'?r.rate+' 套/h':r.rate):'-';
+html+='<tr><td>'+r.sku+'</td><td>'+r.qty+'</td><td>'+r.ppl+'</td><td>'+rate+'</td><td>'+r.hours+'</td><td>'+r.end_time+'</td></tr>';
+});
+html+='</table>';
+html+='<div class=summary>📊 合计：'+d.total_qty+'套 | 共约 '+fmtHours(d.total_hours)+'</div>';
+document.getElementById('result').innerHTML=html;
+}else{
+document.getElementById('result').innerHTML='<p style=color:#e53e3e>❌ '+(d.message||'计算失败')+'</p>';
+}
+}catch(e){
+document.getElementById('result').innerHTML='<p style=color:#e53e3e>❌ 请求失败: '+e.message+'</p>';
+}
+};
+reader.readAsArrayBuffer(file);
+}
+</script></body></html>

@@ -103,6 +103,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 <div class="nav-item" data-panel="capacity_calc">&#x26A1; 产能计算</div>
 <div class="nav-item" data-panel="capacity_entry">&#x1F4DD; 产能录入</div>
 <div class="nav-item" data-panel="capacity_query">&#x1F50D; 产能查询</div>
+<div class="nav-item" data-panel="batch_calc">&#x1F4CE; 批量产能</div>
 </div>
 
 <div class="nav-item" data-panel="packing">&#x1F4D0; 包装设计</div>
@@ -298,6 +299,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 </div></div></div>
 
 <!-- ===== 产能查询 ===== -->
+<div class="panel iframe-panel" id="panel-batch_calc"><iframe src="/batch_calc"></iframe></div>
 <div class="panel" id="panel-capacity_query">
 <div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#4361ee">🔍</div><h3>产能查询</h3></div>
 <div class="card-bd">
@@ -327,7 +329,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 
 <script>
 
-var titles={home:"首页",lbl100:"100×100 标签",lbl30:"100×30 标签",us:"美国发货",ca:"加拿大发货",shipment:"批次上传",scan:"工人扫码",scan_admin:"管理后台",workshop:"加工列表",workshop_board:"车间看板",capacity:"产能查询",packing:"包装设计",check:"收货核对",track:"物流跟踪",ai:"AI助手",capacity_calc:"产能计算",capacity_entry:"产能录入",capacity_query:"产能查询",workshop_admin:"管理"};
+var titles={home:"首页",lbl100:"100×100 标签",lbl30:"100×30 标签",us:"美国发货",ca:"加拿大发货",shipment:"批次上传",scan:"工人扫码",scan_admin:"管理后台",workshop:"加工列表",workshop_board:"车间看板",capacity:"产能查询",packing:"包装设计",check:"收货核对",track:"物流跟踪",ai:"AI助手",capacity_calc:"产能计算",capacity_entry:"产能录入",capacity_query:"产能查询",batch_calc:"批量产能",workshop_admin:"管理"};
 
 function switchPanel(p){
 document.querySelectorAll(".panel").forEach(function(x){x.classList.remove("act")});

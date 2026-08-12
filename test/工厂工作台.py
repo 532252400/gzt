@@ -286,7 +286,7 @@ h1{font-size:18px;text-align:center;padding:8px 0 4px}
 .sc div{padding:3px 0;border-bottom:1px solid #eee}.sc div:last-child{border:none}
 	.hd{display:none}
 .cr{font-size:11px;color:#999;text-align:center;margin-top:15px}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h1>📋 扫码核对</h1>
 <p class="st" id="batchInfo">加载中...</p>
 <select class="sel" id="regionSel"><option value="">-- 请选择区域 --</option></select>
@@ -376,7 +376,7 @@ h1{font-size:20px;margin-bottom:12px}
 .h2{font-size:14px;margin:10px 0 6px;display:flex;align-items:center;gap:6px}
 .h2 .tag{padding:2px 8px;border-radius:3px;color:#fff;font-size:10px}
 .ex{background:#fff;border-radius:6px;padding:8px;font-size:11px;margin-bottom:12px;max-height:200px;overflow-y:auto}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h1>📊 扫码管理后台</h1>
 <select class="sel2" id="batchSel" onchange="load()"></select>
 <div class="rt" id="regionTabs"></div>
@@ -455,7 +455,7 @@ h1{font-size:20px;margin-bottom:12px}
 .bb{display:inline-block;background:#e6f4ea;border:1px solid #34a853;border-radius:4px;padding:2px 8px;font-size:10px;color:#188038}
 .br{display:inline-block;background:#fce8e6;border:1px solid #ea4335;border-radius:4px;padding:2px 8px;font-size:10px;color:#d93025}
 .cr{font-size:11px;color:#999;margin-top:16px}
-</style></head><body><h1>全部批次记录</h1>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body><h1>全部批次记录</h1>
 <div style="overflow-x:auto"><table class="t" id="batchTable"><tr><th>批次名称</th><th>上传时间</th><th>状态</th><th>总货件</th><th>已扫</th><th>正确</th><th>异常</th><th>更正</th><th>未处理</th><th>各区域</th></tr></table></div>
 <p class="cr"><a href="/scan_admin">← 返回</a> | <a href="/">工作台</a></p><script>
 fetch('/scan_history').then(r=>r.json()).then(bs=>{
@@ -505,7 +505,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;c
 .na{text-align:center;font-size:12px;color:#999;padding:40px 20px}
 .cr{font-size:11px;color:#999;text-align:center;padding:12px;margin-top:8px}
 	.bt{font-size:11px;color:#cbd5e0;text-decoration:none}
-	.pri-item{background:#fffaf0;border-left:3px solid #e53e3e;margin-bottom:6px!important}</style></head><body>
+	.pri-item{background:#fffaf0;border-left:3px solid #e53e3e;margin-bottom:6px!important}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 				<div class="hd"><div style="display:flex;align-items:center;gap:8px"><h1 style="flex:1">🔧 车间加工列表(手机端) <span style="font-size:11px;color:#a0aec0;font-weight:400">'''+VERSION+'''</span></h1><a href="#" style="color:#fff;text-decoration:none;font-size:18px" onclick="showQR();return false">📱</a></div><p id="batchInfo">全部加工单</p></div>
 			<div class="filter-bar"><button id="f_pending" class="on" onclick="setFilter('pending')">📋 待处理</button><button id="f_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="f_completed" onclick="setFilter('completed')">✅ 已完成</button><button id="f_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
 			<div style="margin:0 12px 4px;padding:6px 10px;background:#fffbeb;border:1px solid #f6e05e;border-radius:6px;font-size:11px;color:#975a16">📢 开始、暂停、完工环节，须第一时间点击对应按键（如打包、下班点暂停）</div>
@@ -730,7 +730,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;c
 .del-bar label input{cursor:pointer}
 .del-btn{background:#e53e3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer}
 .del-btn:hover{background:#c53030}
-.cb-item{width:14px;height:14px;cursor:pointer;margin-right:4px;flex-shrink:0}</style></head><body>
+.cb-item{width:14px;height:14px;cursor:pointer;margin-right:4px;flex-shrink:0}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 	<div class="hd" style="display:flex;align-items:center;gap:10px"><div><h1>🛡 管理后台</h1><p id="batchInfo">全部加工单</p><p id="debugInfo" style="font-size:10px;color:#ff0;text-align:center">加载中...</p></div></div>
 <div class="filter-bar"><button id="af_all" class="on" onclick="setFilter('all')">📋 待处理</button><button id="af_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="af_completed" onclick="setFilter('completed')">✅ 已完成</button><button id="af_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
 <div class="people-bar"><span>👥</span><input id="peopleInput" type="number" min="1" placeholder="人数" onchange="savePeople()"><span style="font-size:11px;color:#999" id="peopleLabel">上班: -</span></div>
@@ -940,7 +940,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	.calc-row .inl{display:flex;gap:10px}.calc-row .inl>div{flex:1}
 	.calc-res{padding:12px;border-radius:6px;font-size:13px;line-height:1.8;display:none}
 	.calc-res.ok{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;display:block}
-	.calc-res.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}</style></head><body>
+	.calc-res.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 		<div class="hd"><div class="hd-top">
 			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.2</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
 							<div class="people-bar"><span style="font-size:11px;color:#a0aec0">v1.2</span></div>
@@ -957,7 +957,9 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 <div class="calc-row"><div class="inl"><div><label>数量</label><input id="calcQty" type="number" min="1" placeholder="1000" onkeydown="if(event.key==='Enter')doCalc()"></div><div><label>人数</label><input id="calcPeople" type="number" min="1" value="1" onkeydown="if(event.key==='Enter')doCalc()"></div></div></div>
 <button class="btn-s" onclick="doCalc()" style="width:100%;padding:10px;font-size:14px;margin-bottom:10px">▶ 计算用时</button>
 <div class="calc-res" id="calcResult"></div>
+	
 	<button onclick="document.getElementById('calcModal').style.display='none'" style="width:100%;padding:8px;background:#e2e8f0;border:none;border-radius:6px;font-size:12px;cursor:pointer;margin-top:6px">关闭</button>
+
 	</div></div>
 	<div class="ov" id="etaModal"><div class="bx" style="width:380px"><h3>📝 产能录入</h3><p style="font-size:11px;color:#888;margin-bottom:12px">输入实际生产数据，自动计算效率（套/人/小时）</p>
 	<div class="calc-row"><label>SKU</label><input id="etaSku" placeholder="例：PW-MSG16-001"></div>
@@ -1178,6 +1180,50 @@ async function doCalc(){
         }else{
             res.className='calc-res err';res.innerHTML='❌ '+(d.message||'计算失败');
         }
+
+// 批量产能上传
+async function doBatchCalc(){
+	var file=document.getElementById('batchFile2').files[0];if(!file)return;
+	var reader=new FileReader();
+	reader.onload=async function(e){
+		var data=new Uint8Array(e.target.result);
+		var wb=XLSX.read(data,{type:'array'});
+		var ws=wb.Sheets[wb.SheetNames[0]];
+		var rows=XLSX.utils.sheet_to_json(ws,{header:1});
+		if(rows.length<2){alert('文件无数据');return}
+		var items=[];
+		for(var i2=1;i2<rows.length;i2++){
+			var r=rows[i2];if(!r||!r[4])continue;
+			var sku=String(r[4]||'').trim();
+			var qty=parseInt(r[11])||0;
+			var ppl=parseInt(r[13])||0;
+			if(sku&&qty>0)items.push({sku:sku,qty:qty,ppl:ppl});
+		}
+		if(!items.length){alert('未找到有效数据（E列=SKU, M列=数量）');return}
+		var bt=document.getElementById('batchResult');bt.style.display='block';
+		document.getElementById('batchTable').innerHTML='<div style=text-align:center;padding:10px;color:#666>计算中...</div>';
+		try{
+			var resp=await fetch('/calc_batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})});
+			var d=await resp.json();
+			if(d.status==='ok'){
+				var html='<table style=width:100%;font-size:11px;border-collapse:collapse>';
+				html+='<tr style=background:#f7fafc><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:left>SKU</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>数量</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>人数</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>效率</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>预计耗时</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>完成时间</th></tr>';
+				d.results.forEach(function(r2){
+					var rate=r2.rate?(typeof r2.rate==='number'?r2.rate+' 套/h':r2.rate):'-';
+					html+='<tr><td style=padding:4px 6px;border:1px solid #e2e8f0>'+escHtml(r2.sku)+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.qty+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.ppl+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+rate+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.hours+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.end_time+'</td></tr>';
+				});
+				html+='</table>';
+				document.getElementById('batchTable').innerHTML=html;
+				document.getElementById('batchSummary').textContent='合计：'+d.total_qty+'套 | 共约 '+fmtHours(d.total_hours);
+			}else{
+				document.getElementById('batchTable').innerHTML='<div style=color:#e53e3e>❌ '+(d.message||'计算失败')+'</div>';
+			}
+		}catch(e2){
+			document.getElementById('batchTable').innerHTML='<div style=color:#e53e3e>请求失败: '+e2.message+'</div>';
+		}
+	};
+	reader.readAsArrayBuffer(file);
+}
     }catch(e){
         res.className='calc-res err';res.innerHTML='❌ 请求失败：'+e.message;
     }
@@ -1424,7 +1470,7 @@ body{font-family:"Microsoft YaHei",sans-serif;padding:30px;max-width:600px;margi
 button{padding:10px 20px;margin:5px;font-size:14px;cursor:pointer}
 pre{background:#f5f5f5;padding:10px;border-radius:4px;font-size:12px;max-height:300px;overflow:auto}
 input{margin:5px 0}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h2>POST诊断工具</h2>
 <p>此页用于独立测试后端POST功能，与主页逻辑完全隔离。</p>
 
@@ -1507,6 +1553,13 @@ except:
 
 
 
+BATCH_CALC_PAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'batch_calc.html')
+try:
+    with open(BATCH_CALC_PAGE_FILE, 'r', encoding='utf-8') as f:
+        BATCH_CALC_PAGE = f.read()
+except:
+    BATCH_CALC_PAGE = '<h2>Error loading page</h2>'
+
 PACKING_PAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packing.html')
 try:
     with open(PACKING_PAGE_FILE, 'r', encoding='utf-8') as f:
@@ -1518,7 +1571,7 @@ POST_TEST_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8
 body{font-family:"Microsoft YaHei",sans-serif;padding:20px;font-size:14px}
 button{padding:12px 24px;margin:8px;font-size:16px}
 pre{background:#f0f0f0;padding:10px;margin:8px 0}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h2>POST底层连通性测试</h2>
 
 <p>测试1: 纯文本POST（不传文件）</p>
@@ -1611,10 +1664,16 @@ class H(http.server.BaseHTTPRequestHandler):
         if p == '/health': return self._json({'status':'ok','port':PORT})
         if p == '/diag': return self._html(DIAG_PAGE)
         if p == '/us': return self._html(US_PAGE)
+        if p == '/batch_calc':
+            try:
+                with open(BATCH_CALC_PAGE_FILE, 'r', encoding='utf-8') as pf:
+                    return self._html(pf.read().strip())
+            except:
+                return self._html(BATCH_CALC_PAGE)
         if p == '/packing':
             try:
                 with open(PACKING_PAGE_FILE, 'r', encoding='utf-8') as pf:
-                    return self._html(pf.read())
+                    return self._html(pf.read().strip())
             except:
                 return self._html(PACKING_PAGE)
         if p == '/cards': return self._html(CARDS_PAGE)
@@ -1749,6 +1808,42 @@ class H(http.server.BaseHTTPRequestHandler):
             else:
                 end_str = str(end.month)+'月'+str(end.day)+'日 '+end.strftime('%H:%M')
             return self._json({'status':'ok','hours':hours,'end_time':end_str,'rate':round(rate*60,1),'source':'历史记录'})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         if p.startswith('/get_efficiency'):
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
             c.execute('SELECT sku, rate, note, created_at FROM efficiency ORDER BY sku')
@@ -1813,6 +1908,36 @@ class H(http.server.BaseHTTPRequestHandler):
             print(f'[POST] CL={self.headers.get("Content-Length","?")}', flush=True)
             b = self.rfile.read(int(self.headers['Content-Length'])); print(f'[POST] read {len(b)} bytes, first 100: {b[:100]}', flush=True)
             boundary = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', ct)
+            # 批量产能计算 (JSON)
+            if ct.startswith('application/json'):
+                try:
+                    body = json.loads(b.decode('utf-8'))
+                    items = body.get('items', [])
+                    results = []
+                    for item in items:
+                        sku = item.get('sku','').strip().upper()
+                        qty = int(item.get('qty', 0))
+                        ppl = int(item.get('ppl', 0)) or 1
+                        if not sku or qty <= 0:
+                            results.append({'sku':sku or '(空)','qty':qty,'ppl':ppl,'rate':'','hours':'','end_time':'','error':'参数错误'})
+                            continue
+                        est = calc_est_completion(sku, 'x'+str(ppl))
+                        if not est or not est.get('rate'):
+                            results.append({'sku':sku,'qty':qty,'ppl':ppl,'rate':'缺','hours':'缺预估','end_time':'缺预估'})
+                            continue
+                        rate = est['rate']
+                        hours = round(qty / (rate * 60 * ppl), 1)
+                        now = datetime.datetime.now()
+                        end = calc_end_time(now, qty / (rate * ppl))
+                        if end.date() == now.date(): end_str = end.strftime('%H:%M')
+                        else: end_str = str(end.month)+'月'+str(end.day)+'日 '+end.strftime('%H:%M')
+                        results.append({'sku':sku,'qty':qty,'ppl':ppl,'rate':round(rate*60,1),'hours':hours,'end_time':end_str})
+                    total_hours = sum(r['hours'] for r in results if isinstance(r.get('hours'),(int,float)))
+                    total_qty = sum(r['qty'] for r in results)
+                    return self._json({'status':'ok','results':results,'total_hours':round(total_hours,1),'total_qty':total_qty})
+                except Exception as e2:
+                    return self._json({'status':'error','message':str(e2)})
+
             if not boundary: print('[POST] NO boundary found in CT', flush=True); return self._json({'status':'error','message':'No boundary'})
             bnd = boundary.group(1) or boundary.group(2)
             parts = b.split(('--'+bnd).encode()); print(f'[POST] boundary={bnd}, parts={len(parts)}', flush=True)
