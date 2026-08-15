@@ -1203,7 +1203,7 @@ async function resolveAbnormal(region){
   var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();alert(d.status==='ok'?'✅ '+d.message:('❌ '+(d.message||'')));loadItems();
 }
 var qrUrlText='';
-function setQrUrl(){fetch('/get_ip').then(function(r){return r.json()}).then(function(d){var ip=(d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1');qrUrlText='http://'+ip+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;}).catch(function(){qrUrlText='http://'+location.hostname+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;});}
+function setQrUrl(){qrUrlText='https://gz.mumugzt.com/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;}
 function openQr(){document.getElementById('qrModal').style.display='flex';}
 function closeQr(){document.getElementById('qrModal').style.display='none';}
 function copyQrUrl(){if(!qrUrlText){setQrUrl();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(qrUrlText).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+qrUrlText);});}else{alert('复制失败，请手动复制：'+qrUrlText);}}
@@ -1410,17 +1410,17 @@ function autoRefresh(){loadJobs();setTimeout(autoRefresh,2000);}
 		function showQR(){
 		    var self=this;
 		    fetch('/get_ip').then(function(r){return r.json()}).then(function(d){
-		        var url='http://'+d.ip+':8932/workshop';
+		        var url='https://gz.mumugzt.com/workshop';
 		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
 		        document.getElementById('qrModal').style.display='flex';
 		    }).catch(function(){
-		        var url=window.location.href;
+		        var url='https://gz.mumugzt.com/workshop';
 		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
 		        document.getElementById('qrModal').style.display='flex';
 		    });
 		}
 		function downloadQR(){
-		    var url=window.location.href;
+		    var url='https://gz.mumugzt.com/workshop';
 		    var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
 		}
 		</script>
@@ -2424,7 +2424,7 @@ class H(http.server.BaseHTTPRequestHandler):
             ip = get_ip()
             if not ip or ip == 'localhost':
                 ip = self.headers.get('Host', '').split(':')[0] or '127.0.0.1'
-            url = 'http://' + ip + ':' + str(PORT) + '/box_scan'
+            url = 'https://gz.mumugzt.com/box_scan'
             try:
                 qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
                 qr.add_data(url); qr.make(fit=True)
@@ -2961,7 +2961,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 ip = get_ip()
                 region_info = '\n区域：' + ('、'.join(sorted(regions)) if regions else '无')
                 skip_info = '\n已跳过无货件单号行：'+str(skipped_rows)+'行（通常为小计/合计行）' if skipped_rows else ''
-                return self._json({'status':'ok','message':'✅ 箱码批次已导入\n批次：'+batch_name+'\n共展开 '+str(cnt)+' 个箱码'+region_info+skip_info+'\n\n📱 手机扫码：http://'+ip+':'+str(PORT)+'/box_scan\n📊 管理后台：http://'+ip+':'+str(PORT)+'/box_admin'})
+                return self._json({'status':'ok','message':'✅ 箱码批次已导入\n批次：'+batch_name+'\n共展开 '+str(cnt)+' 个箱码'+region_info+skip_info+'\n\n📱 手机扫码：https://gz.mumugzt.com/box_scan\n📊 管理后台：http://'+ip+':'+str(PORT)+'/box_admin'})
             if action == 'box_ship':
                 bid = int(batch_name) if batch_name.isdigit() else 0
                 if bid:
