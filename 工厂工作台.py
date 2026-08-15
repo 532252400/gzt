@@ -2961,7 +2961,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 ip = get_ip()
                 region_info = '\n区域：' + ('、'.join(sorted(regions)) if regions else '无')
                 skip_info = '\n已跳过无货件单号行：'+str(skipped_rows)+'行（通常为小计/合计行）' if skipped_rows else ''
-                return self._json({'status':'ok','message':'✅ 箱码批次已导入\n批次：'+batch_name+'\n共展开 '+str(cnt)+' 个箱码'+region_info+skip_info+'\n\n📱 手机扫码：https://gz.mumugzt.com/box_scan\n📊 管理后台：http://'+ip+':'+str(PORT)+'/box_admin'})
+                return self._json({'status':'ok','message':'✅ 箱码批次已导入\n批次：'+batch_name+'\n共展开 '+str(cnt)+' 个箱码'+region_info+skip_info+'\n\n📱 手机扫码：https://gz.mumugzt.com/box_scan\n📊 管理后台：https://gz.mumugzt.com/box_admin'})
             if action == 'box_ship':
                 bid = int(batch_name) if batch_name.isdigit() else 0
                 if bid:
@@ -3020,6 +3020,9 @@ class H(http.server.BaseHTTPRequestHandler):
                 code = self._get_post('code', '').strip().upper()
                 if not bid or not region or not code:
                     return self._json({'status':'error','message':'参数错误'})
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute("UPDATE box_scans SET resolved=1 WHERE batch_id=? AND code=? AND result='wrong_region' AND resolved=0", (bid, code))
+                conn.commit(); conn.close()
                 log_box_event(bid, region, 'wrong_region_returned', code, '工人', '已放回正确区域')
                 return self._json({'status':'ok','message':'已确认放回正确区域，请继续扫码'})
             if action == 'save_efficiency':
