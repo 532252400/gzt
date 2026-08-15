@@ -83,12 +83,13 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 <div class="nav-item" data-panel="us">美国发货汇总</div>
 <div class="nav-item" data-panel="ca">加拿大发货</div>
 <div class="nav-item" data-panel="shipment">批次上传</div>
+<div class="nav-item" data-panel="box_upload">箱码批次上传</div>
 </div>
 
 <div class="nav-item has-sub" data-sub="sub-scan">&#x1F4F1; 扫码发货 <span class="arrow">&#x25B6;</span></div>
 <div class="nav-sub" id="sub-scan">
-<div class="nav-item" data-panel="scan">工人扫码</div>
-<div class="nav-item" data-panel="scan_admin">管理后台</div>
+<div class="nav-item" data-panel="box_scan">箱码扫码(手机)</div>
+<div class="nav-item" data-panel="box_admin">箱码管理后台</div>
 </div>
 
 <div class="nav-item has-sub" data-sub="sub-ws">&#x1F527; 车间加工 <span class="arrow">&#x25B6;</span></div>
@@ -103,9 +104,10 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 <div class="nav-item" data-panel="capacity_calc">&#x26A1; 产能计算</div>
 <div class="nav-item" data-panel="capacity_entry">&#x1F4DD; 产能录入</div>
 <div class="nav-item" data-panel="capacity_query">&#x1F50D; 产能查询</div>
+<div class="nav-item" data-panel="batch_calc">&#x1F4CE; 批量产能</div>
 </div>
 
-<div class="nav-item" data-panel="packing">&#x1F4D0; 设计包装</div>
+<div class="nav-item" data-panel="packing">&#x1F4D0; 包装设计</div>
 <div class="nav-item" data-panel="check">&#x2705; 收货核对</div>
 <div class="nav-item" data-panel="track">&#x1F69A; 物流跟踪</div>
 <div class="nav-item" data-panel="ai">&#x1F916; AI助手</div>
@@ -228,12 +230,10 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 <div class="card-hd"><div class="ico" style="background:#718096">&#x1F517;</div><h3>快速入口</h3></div>
 <div class="card-bd">
 <div class="quick-links">
-<a href="#" data-panel="scan">&#x1F4F1; 工人扫码</a>
-<a href="#" data-panel="scan_admin">&#x1F4CA; 管理后台</a>
 <a href="#" data-panel="workshop">&#x1F4CB; 加工列表</a>
 <a href="#" data-panel="workshop_board">&#x1F4CB; 车间看板</a>
 <a href="#" data-panel="capacity">&#x1F4CA; 产能查询</a>
-<a href="#" data-panel="packing">&#x1F4D0; 设计包装</a>
+<a href="#" data-panel="packing">&#x1F4D0; 包装设计</a>
 </div>
 </div></div>
 
@@ -250,45 +250,20 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 
 <div class="panel" id="panel-shipment"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#5a67d8">&#x1F4E6;</div><h3>扫码批次上传</h3></div><div class="card-bd"><p>上传发货单Excel，自动解析SKU条码。</p><div class="upload-zone" onclick="document.getElementById('f8a').click()" id="z8a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f8a" style="display:none" onchange="fs('f8a','z8a','b8a')"><button class="btn btn-purple" id="b8a" disabled onclick="doShip('f8a','b8a','r8a')">&#x1F4E4; 上传批次</button><div class="result-box" id="r8a"></div></div></div></div>
 
+<div class="panel" id="panel-box_upload"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#2f855a">&#x1F4E6;</div><h3>箱码批次上传</h3><span class="tag tag-green">每箱核对</span></div><div class="card-bd"><p>上传发货汇总Excel，按货件单号+总箱数展开成每箱条码；批次名直接使用完整文件名。</p><div class="upload-zone" onclick="document.getElementById('fbx').click()" id="zbx">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="fbx" style="display:none" onchange="fs('fbx','zbx','bbx')"><button class="btn btn-green" id="bbx" disabled onclick="uploadBoxBatch()">&#x1F4E4; 上传箱码批次</button><div class="result-box" id="rbx"></div></div></div></div>
+
 <div class="panel" id="panel-check"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#e53e3e">&#x2705;</div><h3>收货单据核对</h3></div><div class="card-bd"><p>上传Receiving Record，核对通知收货 vs 到货。</p><div class="upload-zone" onclick="document.getElementById('f5a').click()" id="z5a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f5a" style="display:none" onchange="fs('f5a','z5a','b5a')"><button class="btn btn-red" id="b5a" disabled onclick="doPost('rc','f5a','b5a','r5a')">开始核对</button><div class="result-box" id="r5a"></div></div></div></div>
 
 <div class="panel" id="panel-track"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F69A;</div><h3>物流跟踪</h3></div><div class="card-bd"><p>输入物流单号查询状态。</p><div style="display:flex;gap:8px"><input class="ti" id="trackNum2" placeholder="输入物流单号" style="margin-bottom:0"><button class="btn btn-blue btn-sm" onclick="track2()" style="flex-shrink:0">&#x1F50D; 查询</button></div><div class="result-box" id="r6a"></div></div></div></div>
 
 <div class="panel" id="panel-ai"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#5a67d8">&#x1F916;</div><h3>AI助手</h3></div><div class="card-bd"><p>输入问题获取解答。</p><div style="display:flex;gap:8px"><input class="ti" id="qt2" placeholder="输入问题..." style="margin-bottom:0" onkeydown="if(event.key==='Enter')qq2()"><button class="btn btn-purple btn-sm" onclick="qq2()" style="flex-shrink:0">&#x1F4AC; 提问</button></div><div class="result-box" id="r7a"></div></div></div></div>
 
-<!-- ===== 设计包装 ===== -->
+<!-- ===== 包装设计 ===== -->
 <div class="panel" id="panel-packing">
-<div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#d69e2e">&#x1F4D0;</div><h3>珍珠棉设计计算</h3><span class="tag tag-yellow">包装</span></div>
-<div class="card-bd">
-<p>输入参数，自动计算珍珠棉尺寸和运费。</p>
-<table style="font-size:12px;margin-bottom:12px">
-<tr><td style="padding:4px 8px 4px 0;color:#718096">孔直径</td><td><input class="ti" id="pkHole" type="number" value="60" style="width:80px;margin:0;text-align:center"> mm</td>
-<td style="padding:4px 8px 4px 16px;color:#718096">长放几个</td><td><input class="ti" id="pkCols" type="number" value="5" style="width:80px;margin:0;text-align:center"></td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:#718096">宽放几个</td><td><input class="ti" id="pkRows" type="number" value="3" style="width:80px;margin:0;text-align:center"></td>
-<td style="padding:4px 8px 4px 16px;color:#718096">间距</td><td><input class="ti" id="pkGap" type="number" value="10" style="width:80px;margin:0;text-align:center"> mm</td></tr>
-<tr><td style="padding:4px 8px 4px 0;color:#718096">边距</td><td><input class="ti" id="pkEdge" type="number" value="10" style="width:80px;margin:0;text-align:center"> mm</td>
-<td style="padding:4px 8px 4px 16px;color:#718096">高度</td><td><input class="ti" id="pkHeight" type="number" value="180" style="width:80px;margin:0;text-align:center"> mm</td></tr>
-</table>
-<button class="btn btn-yellow" onclick="calcPacking()">&#x1F4D0; 计算</button>
-<div class="result-box" id="pkResult" style="margin-top:12px"></div>
-<div id="pkDetail" style="margin-top:10px;display:none">
-<h4 style="font-size:12px;margin-bottom:6px;color:#2d3748">计算结果</h4>
-<table class="tbl">
-<tr><th>项目</th><th>数值</th><th>说明</th></tr>
-<tr><td>总数量</td><td id="pkQty">-</td><td>孔数 = 长个数 × 宽个数</td></tr>
-<tr><td>珍珠棉长</td><td id="pkLen">-</td><td>孔直径 × 长个数 + 间距 × (长-1) + 边距 × 2</td></tr>
-<tr><td>珍珠棉宽</td><td id="pkWid">-</td><td>孔直径 × 宽个数 + 间距 × (宽-1) + 边距 × 2</td></tr>
-<tr><td>珍珠棉高</td><td id="pkHei">-</td><td>底部高度</td></tr>
-<tr><td>体积</td><td id="pkVol">-</td><td>m³ (增加10mm余量)</td></tr>
-
-</table>
-</div>
-</div></div>
-</div>
-
-<!-- ===== iframe 子页面 ===== -->
-<div class="panel iframe-panel" id="panel-scan"><iframe src="/scan"></iframe></div>
-<div class="panel iframe-panel" id="panel-scan_admin"><iframe src="/scan_admin"></iframe></div>
+<iframe src="/packing" style="width:100%;height:100vh;border:none;display:block"></iframe>
+</div><!-- ===== iframe 子页面 ===== -->
+<div class="panel iframe-panel" id="panel-box_scan"><iframe src="/box_scan"></iframe></div>
+<div class="panel iframe-panel" id="panel-box_admin"><iframe src="/box_admin"></iframe></div>
 <div class="panel iframe-panel" id="panel-workshop"><iframe src="/workshop"></iframe></div>
 <div class="panel iframe-panel" id="panel-workshop_board" data-src="/workshop_board"></div>
 
@@ -325,6 +300,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 </div></div></div>
 
 <!-- ===== 产能查询 ===== -->
+<div class="panel iframe-panel" id="panel-batch_calc"><iframe src="/batch_calc"></iframe></div>
 <div class="panel" id="panel-capacity_query">
 <div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#4361ee">🔍</div><h3>产能查询</h3></div>
 <div class="card-bd">
@@ -354,7 +330,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 
 <script>
 
-var titles={home:"首页",lbl100:"100×100 标签",lbl30:"100×30 标签",us:"美国发货",ca:"加拿大发货",shipment:"批次上传",scan:"工人扫码",scan_admin:"管理后台",workshop:"加工列表",workshop_board:"车间看板",capacity:"产能查询",packing:"设计包装",check:"收货核对",track:"物流跟踪",ai:"AI助手",capacity_calc:"产能计算",capacity_entry:"产能录入",capacity_query:"产能查询",workshop_admin:"管理"};
+var titles={home:"首页",lbl100:"100×100 标签",lbl30:"100×30 标签",us:"美国发货",ca:"加拿大发货",shipment:"批次上传",box_upload:"箱码批次上传",box_scan:"箱码扫码(手机)",box_admin:"箱码管理后台",workshop:"加工列表",workshop_board:"车间看板",capacity:"产能查询",packing:"包装设计",check:"收货核对",track:"物流跟踪",ai:"AI助手",capacity_calc:"产能计算",capacity_entry:"产能录入",capacity_query:"产能查询",batch_calc:"批量产能",workshop_admin:"管理"};
 
 function switchPanel(p){
 document.querySelectorAll(".panel").forEach(function(x){x.classList.remove("act")});
@@ -414,6 +390,15 @@ btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s('r9','wa','\u23F3 .
 var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','import_jobs');fd.append('batch_name',nm);
 try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s('r9',d.status==='ok'?'ok':'er',d.message);if(d.status==='ok')loadMetrics()}
 catch(e){s('r9','er','\u274C '+e.message)}btn.disabled=false;btn.textContent='\u{1F4E4} \u4E0A\u4F20\u52A0\u5DE5\u5355';
+}
+
+async function uploadBoxBatch(){
+var fi=document.getElementById('fbx'),btn=document.getElementById('bbx'),res=document.getElementById('rbx');
+if(!fi||!fi.files||!fi.files[0])return;
+btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s(res,'wa','\u23F3 ...');
+var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action','box_import');fd.append('batch_name',fi.files[0].name);
+try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s(res,d.status==='ok'?'ok':'er',d.message)}
+catch(e){s(res,'er','\u274C '+e.message)}btn.disabled=false;btn.textContent='\u{1F4E4} \u4E0A\u4F20\u7BB1\u7801\u6279\u6B21';
 }
 
 async function track(){var num=document.getElementById('trackNum').value.trim();if(!num){s('r6','er','\u274C \u8F93\u5165\u5355\u53F7');return}s('r6','wa','\u23F3 ...');try{var r=await fetch('/track?num='+encodeURIComponent(num));var d=await r.json();s('r6',d.status==='ok'?'ok':'er',d.message)}catch(e){s('r6','er','\u274C '+e.message)}}

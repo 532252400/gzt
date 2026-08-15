@@ -1,5 +1,6 @@
 import http.server, json, os, re, winreg, urllib.parse, io, webbrowser, sys, threading, time
 import urllib.request, socket, sqlite3, datetime
+import qrcode
 
 # ====== 数据库 ======
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_scan_data.db')
@@ -16,6 +17,21 @@ def init_db():
     try: c.execute('ALTER TABLE job_items ADD COLUMN job_number TEXT DEFAULT \'\'')
     except: pass
     c.execute('''CREATE TABLE IF NOT EXISTS efficiency (id INTEGER PRIMARY KEY AUTOINCREMENT, sku TEXT UNIQUE, rate REAL, note TEXT, created_at TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS box_batches (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, created_at TEXT, total_boxes INTEGER DEFAULT 0, regions TEXT, status TEXT DEFAULT \'active\')''')
+    c.execute('''CREATE TABLE IF NOT EXISTS box_items (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, fba TEXT, box_no TEXT, code TEXT, region TEXT, status TEXT DEFAULT \'pending\', scanned_at TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS box_scans (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, code TEXT, worker TEXT, result TEXT, region TEXT, note TEXT, scanned_at TEXT)''')
+    try: c.execute('ALTER TABLE box_scans ADD COLUMN resolved INTEGER DEFAULT 0')
+    except: pass
+    c.execute('''CREATE TABLE IF NOT EXISTS box_locks (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, region TEXT, reason TEXT, created_at TEXT, UNIQUE(batch_id, region))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS box_events (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, region TEXT, event_type TEXT, code TEXT, worker TEXT, note TEXT, created_at TEXT)''')
+    try: c.execute('CREATE INDEX IF NOT EXISTS idx_box_items_batch ON box_items(batch_id)')
+    except: pass
+    try: c.execute('CREATE INDEX IF NOT EXISTS idx_box_items_code ON box_items(code)')
+    except: pass
+    try: c.execute('CREATE INDEX IF NOT EXISTS idx_box_scans_batch ON box_scans(batch_id)')
+    except: pass
+    try: c.execute('CREATE INDEX IF NOT EXISTS idx_box_events_batch ON box_events(batch_id)')
+    except: pass
     conn.commit(); conn.close()
 init_db()
 
@@ -235,6 +251,229 @@ def get_region_stats(bid, region):
     conn.close()
     return {'total':total,'scanned':scanned,'correct':correct,'wrong':wrong}
 
+# ====== 箱码扫码发货核对 ======
+def make_box_code(fba, box_no):
+    """FBA号 + U + 6位箱号，如 FBA19L909LYXU000001"""
+    return (fba or '').strip().upper() + 'U' + str(int(box_no)).zfill(6)
+
+def import_box_batch(fp, batch_name):
+    """上传发货汇总Excel，按货件单号+总箱数展开成每箱一条，批次名=完整文件名"""
+    import openpyxl
+    wb = openpyxl.load_workbook(fp, data_only=True)
+    ws = wb[wb.sheetnames[0]]
+    headers = {}
+    for c in range(1, ws.max_column + 1):
+        h = str(ws.cell(1, c).value or '').strip()
+        if h:
+            headers[h] = c
+    def find_col(*names):
+        for n in names:
+            if n in headers:
+                return headers[n]
+        return None
+    fba_col = find_col('货件单号')
+    boxes_col = find_col('总箱数')
+    channel_col = find_col('物流渠道')
+    center_col = find_col('物流中心编码')
+    country_col = find_col('国家')
+    if not fba_col or not boxes_col:
+        raise ValueError('表格中找不到「货件单号」或「总箱数」列，请确认文件格式')
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+    c.execute('INSERT INTO box_batches (name, created_at, total_boxes, regions, status) VALUES (?,?,0,\'\',\'active\')', (batch_name, now))
+    bid = c.lastrowid
+    cnt = 0
+    skipped_rows = 0
+    skipped_boxes = 0
+    regions_used = set()
+    rows = []
+    center_map = {}
+    for r in range(2, ws.max_row + 1):
+        fba = str(ws.cell(r, fba_col).value or '').strip()
+        channel = str(ws.cell(r, channel_col).value or '').strip() if channel_col else ''
+        center = str(ws.cell(r, center_col).value or '').strip() if center_col else ''
+        country = str(ws.cell(r, country_col).value or '').strip() if country_col else ''
+        try:
+            total_boxes = int(float(str(ws.cell(r, boxes_col).value or '0').replace(',', '').strip()))
+        except:
+            total_boxes = 0
+        if not fba or total_boxes <= 0:
+            skipped_rows += 1
+            if total_boxes > 0:
+                skipped_boxes += total_boxes
+            continue
+        region_prefix = ''
+        if channel:
+            for rg in REGIONS:
+                if channel.startswith(rg):
+                    region_prefix = rg
+                    break
+        if region_prefix and center:
+            if center not in center_map.setdefault(region_prefix, []):
+                center_map[region_prefix].append(center)
+        rows.append((fba, total_boxes, region_prefix, country))
+    def region_label(prefix, country):
+        if prefix:
+            centers = center_map.get(prefix, [])
+            return prefix + ('-' + '/'.join(centers) if centers else '')
+        return country or '未分区'
+    for fba, total_boxes, region_prefix, country in rows:
+        region = region_label(region_prefix, country)
+        if region:
+            regions_used.add(region)
+        for i in range(1, total_boxes + 1):
+            code = make_box_code(fba, i)
+            c.execute('INSERT INTO box_items (batch_id, fba, box_no, code, region, status) VALUES (?,?,?,?,?,\'pending\')', (bid, fba.upper(), str(i).zfill(6), code, region))
+            cnt += 1
+    regions_str = ','.join(sorted(regions_used)) if regions_used else ''
+    c.execute('UPDATE box_batches SET total_boxes=?, regions=? WHERE id=?', (cnt, regions_str, bid))
+    conn.commit(); conn.close()
+    return bid, cnt, skipped_rows, skipped_boxes, regions_used
+
+def get_box_stats(bid, region=''):
+    """箱码批次/区域统计（异常分为未处理与已处理）"""
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    if region:
+        c.execute('SELECT COUNT(*) FROM box_items WHERE batch_id=? AND region=?', (bid, region))
+        expected = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_items WHERE batch_id=? AND region=? AND status=\'scanned\'', (bid, region))
+        scanned = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND region=? AND result=\'wrong_region\' AND resolved=0', (bid, region))
+        wrong = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND region=? AND result=\'wrong_region\' AND resolved=1', (bid, region))
+        resolved_wrong = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND region=? AND result=\'not_found\' AND resolved=0', (bid, region))
+        not_found = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND region=? AND result=\'not_found\' AND resolved=1', (bid, region))
+        resolved_not_found = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND region=? AND result=\'duplicate\' AND resolved=0', (bid, region))
+        duplicate = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND region=? AND result=\'duplicate\' AND resolved=1', (bid, region))
+        resolved_duplicate = c.fetchone()[0]
+    else:
+        c.execute('SELECT COUNT(*) FROM box_items WHERE batch_id=?', (bid,))
+        expected = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_items WHERE batch_id=? AND status=\'scanned\'', (bid,))
+        scanned = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND result=\'wrong_region\' AND resolved=0', (bid,))
+        wrong = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND result=\'wrong_region\' AND resolved=1', (bid,))
+        resolved_wrong = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND result=\'not_found\' AND resolved=0', (bid,))
+        not_found = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND result=\'not_found\' AND resolved=1', (bid,))
+        resolved_not_found = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND result=\'duplicate\' AND resolved=0', (bid,))
+        duplicate = c.fetchone()[0]
+        c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND result=\'duplicate\' AND resolved=1', (bid,))
+        resolved_duplicate = c.fetchone()[0]
+    conn.close()
+    return {'expected':expected, 'scanned':scanned, 'remaining':max(expected-scanned, 0), 'wrong':wrong, 'not_found':not_found, 'duplicate':duplicate, 'resolved_wrong':resolved_wrong, 'resolved_not_found':resolved_not_found, 'resolved_duplicate':resolved_duplicate}
+def log_box_event(batch_id, region, event_type, code='', worker='', note=''):
+    """全程留痕：记录箱码批次的关键操作"""
+    try:
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute('INSERT INTO box_events (batch_id, region, event_type, code, worker, note, created_at) VALUES (?,?,?,?,?,?,?)',
+                  (batch_id, region or '', event_type, code or '', worker or '', note or '', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        conn.commit(); conn.close()
+    except Exception as e:
+        print('[DEBUG] log_box_event error:', e, flush=True)
+
+def set_box_lock(bid, region, reason, code='', worker=''):
+    """设置区域异常锁，并记录日志"""
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute('INSERT INTO box_locks (batch_id, region, reason, created_at) VALUES (?,?,?,?) ON CONFLICT(batch_id, region) DO UPDATE SET reason=excluded.reason, created_at=excluded.created_at', (bid, region, reason, now))
+    conn.commit(); conn.close()
+    log_box_event(bid, region, 'region_locked', code, worker, reason)
+
+def clear_box_lock(bid, region, worker='管理员'):
+    """管理员解锁区域，并记录日志"""
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute('DELETE FROM box_locks WHERE batch_id=? AND region=?', (bid, region))
+    conn.commit(); conn.close()
+    log_box_event(bid, region, 'region_unlocked', '', worker, '管理员解锁')
+
+def get_box_locks(bid):
+    """获取批次所有区域锁定状态"""
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute('SELECT region, reason, created_at FROM box_locks WHERE batch_id=?', (bid,))
+    rows = c.fetchall(); conn.close()
+    return {r[0]: {'reason':r[1], 'created_at':r[2]} for r in rows}
+
+def get_box_batches(active_only=False):
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    if active_only:
+        c.execute('SELECT id,name,created_at,total_boxes,regions,status FROM box_batches WHERE status=\'active\' ORDER BY id DESC')
+    else:
+        c.execute("SELECT id,name,created_at,total_boxes,regions,status FROM box_batches ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END, id DESC")
+    rows = c.fetchall(); conn.close()
+    result = []
+    for b in rows:
+        regions = [r for r in (b[4] or '').split(',') if r]
+        result.append({'id':b[0],'name':b[1],'created':b[2],'total_boxes':b[3],'regions':regions,'status':b[5]})
+    return result
+
+def box_check_code(bid, code, worker, region):
+    code = (code or '').strip().upper()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute('SELECT id,name,status FROM box_batches WHERE id=?', (bid,))
+    batch = c.fetchone()
+    if not batch:
+        conn.close(); return {'result':'no_batch','message':'批次不存在','stats':get_box_stats(0),'locks':{}}
+    if batch[2] != 'active':
+        conn.close(); return {'result':'shipped','message':'该批次已发货，不再接收扫码','stats':get_box_stats(bid),'locks':{}}
+    if not region:
+        conn.close(); return {'result':'error','message':'请先选择区域','stats':get_box_stats(bid),'history':[],'locks':{}}
+    c.execute('SELECT reason FROM box_locks WHERE batch_id=? AND region=?', (bid, region))
+    lock_row = c.fetchone()
+    if lock_row:
+        conn.close()
+        return {'result':'locked','message':'区域已锁定，请联系管理员解锁','lock_reason':lock_row[0],'stats':get_box_stats(bid, region),'locks':get_box_locks(bid),'history':[]}
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    c.execute('SELECT id, fba, box_no, code, region, status FROM box_items WHERE batch_id=? AND code=?', (bid, code))
+    item = c.fetchone()
+    expected_region = ''
+    lock_reason = ''
+    if not item:
+        c.execute('INSERT INTO box_scans (batch_id, code, worker, result, region, note, scanned_at) VALUES (?,?,?,?,?,?,?)', (bid, code, worker, 'not_found', region, '清单中没有此箱码', now))
+        conn.commit()
+        result = 'not_found'
+        message = '清单中没有此箱码'
+        lock_reason = 'not_found'
+    else:
+        item_region = item[4] or ''
+        expected_region = item_region
+        if region and item_region != region:
+            c.execute('INSERT INTO box_scans (batch_id, code, worker, result, region, note, scanned_at) VALUES (?,?,?,?,?,?,?)', (bid, code, worker, 'wrong_region', region, '此箱应属 '+item_region, now))
+            conn.commit()
+            result = 'wrong_region'
+            message = '此箱应属 '+item_region
+        else:
+            c.execute('SELECT COUNT(*) FROM box_scans WHERE batch_id=? AND code=? AND result=\'correct\'', (bid, code))
+            already = c.fetchone()[0]
+            if already:
+                c.execute('INSERT INTO box_scans (batch_id, code, worker, result, region, note, scanned_at) VALUES (?,?,?,?,?,?,?)', (bid, code, worker, 'duplicate', region, '重复扫码', now))
+                conn.commit()
+                result = 'duplicate'
+                message = '重复扫码，请勿重复'
+                lock_reason = 'duplicate'
+            else:
+                c.execute('UPDATE box_items SET status=\'scanned\', scanned_at=? WHERE id=?', (now, item[0]))
+                c.execute('INSERT INTO box_scans (batch_id, code, worker, result, region, note, scanned_at) VALUES (?,?,?,?,?,?,?)', (bid, code, worker, 'correct', region, '', now))
+                c.execute('UPDATE box_scans SET resolved=1 WHERE batch_id=? AND code=? AND result=\'wrong_region\' AND resolved=0', (bid, code))
+                conn.commit()
+                result = 'correct'
+                message = '正确'
+    c.execute('SELECT code, worker, result, region, scanned_at FROM box_scans WHERE batch_id=? ORDER BY id DESC LIMIT 20', (bid,))
+    history = [{'code':h[0],'worker':h[1] or '', 'result':h[2], 'region':h[3] or '', 'time':h[4] or ''} for h in c.fetchall()]
+    stats = get_box_stats(bid, region)
+    conn.close()
+    if lock_reason:
+        set_box_lock(bid, region, lock_reason, code, worker)
+    locks = get_box_locks(bid)
+    return {'result':result,'message':message,'code':code,'expected_region':expected_region,'stats':stats,'history':history,'lock_reason':lock_reason,'locks':locks}
+
 # ====== 端口 ======
 # 使服务器能重用TIME_WAIT状态的端口
 # allow_reuse_address removed - causes port stealing on Windows
@@ -286,7 +525,7 @@ h1{font-size:18px;text-align:center;padding:8px 0 4px}
 .sc div{padding:3px 0;border-bottom:1px solid #eee}.sc div:last-child{border:none}
 	.hd{display:none}
 .cr{font-size:11px;color:#999;text-align:center;margin-top:15px}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h1>📋 扫码核对</h1>
 <p class="st" id="batchInfo">加载中...</p>
 <select class="sel" id="regionSel"><option value="">-- 请选择区域 --</option></select>
@@ -376,7 +615,7 @@ h1{font-size:20px;margin-bottom:12px}
 .h2{font-size:14px;margin:10px 0 6px;display:flex;align-items:center;gap:6px}
 .h2 .tag{padding:2px 8px;border-radius:3px;color:#fff;font-size:10px}
 .ex{background:#fff;border-radius:6px;padding:8px;font-size:11px;margin-bottom:12px;max-height:200px;overflow-y:auto}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h1>📊 扫码管理后台</h1>
 <select class="sel2" id="batchSel" onchange="load()"></select>
 <div class="rt" id="regionTabs"></div>
@@ -455,7 +694,7 @@ h1{font-size:20px;margin-bottom:12px}
 .bb{display:inline-block;background:#e6f4ea;border:1px solid #34a853;border-radius:4px;padding:2px 8px;font-size:10px;color:#188038}
 .br{display:inline-block;background:#fce8e6;border:1px solid #ea4335;border-radius:4px;padding:2px 8px;font-size:10px;color:#d93025}
 .cr{font-size:11px;color:#999;margin-top:16px}
-</style></head><body><h1>全部批次记录</h1>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body><h1>全部批次记录</h1>
 <div style="overflow-x:auto"><table class="t" id="batchTable"><tr><th>批次名称</th><th>上传时间</th><th>状态</th><th>总货件</th><th>已扫</th><th>正确</th><th>异常</th><th>更正</th><th>未处理</th><th>各区域</th></tr></table></div>
 <p class="cr"><a href="/scan_admin">← 返回</a> | <a href="/">工作台</a></p><script>
 fetch('/scan_history').then(r=>r.json()).then(bs=>{
@@ -469,6 +708,508 @@ fetch('/scan_history').then(r=>r.json()).then(bs=>{
     });
     if(!bs.length){var tr2=document.createElement('tr');tr2.innerHTML='<td colspan="10" style="text-align:center;color:#999">暂无数据</td>';t.appendChild(tr2);}
 });
+</script></body></html>'''
+
+# ====== 箱码扫码手机端 ======
+BOX_SCAN_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>箱码扫码核对</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;color:#333;padding:10px;max-width:520px;margin:0 auto}
+h1{font-size:18px;text-align:center;padding:8px 0 2px}
+.hdr{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0}
+.hdr h1{padding:4px 0}
+.rf{background:#fff;border:1px solid #1a73e8;color:#1a73e8;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;flex-shrink:0}
+.st{text-align:center;font-size:11px;color:#999;margin-bottom:8px}
+.bar{display:flex;gap:6px;margin-bottom:8px}
+.bar select{flex:1;padding:9px;border:2px solid #1a73e8;border-radius:8px;font-size:13px;background:#fff}.region-board{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}.rrow{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:12px;cursor:pointer}.rrow.sel{border-color:#1a73e8;background:#eef4ff}.rrow .rname{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rrow .rstat{font-size:11px;font-weight:600;white-space:nowrap}.rrow .rprog{color:#666;white-space:nowrap}.rrow .rerr{color:#d93025;white-space:nowrap}.rstat.st-ok{color:#188038}.rstat.st-warn{color:#b26a00}.rstat.st-run{color:#1a73e8}.rstat.st-none{color:#999}
+.i{width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:16px;text-align:center;margin-bottom:8px}
+.i:focus{outline:none;border-color:#1a73e8}
+.enter{display:flex;gap:6px;margin-bottom:8px}
+.enter input{flex:1;margin-bottom:0}
+.enter button{padding:10px 18px;background:#1a73e8;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;white-space:nowrap}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.tile{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 4px;text-align:center}
+.tile b{display:block;font-size:18px}.tile span{font-size:10px;color:#888}
+.tile.warn b{color:#ea4335}.tile.ok b{color:#188038}
+.reset-row{text-align:center;margin-bottom:8px}
+.reset-btn{background:#fff;border:1px solid #ea4335;color:#ea4335;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer}
+.r{padding:18px;border-radius:10px;text-align:center;display:none;margin-bottom:8px}
+.r .ico{font-size:42px;margin-bottom:4px}.r .s{font-size:18px;font-weight:bold;margin-bottom:4px}.r .d{font-size:12px;color:#666;line-height:1.6}
+.good{background:#e6f4ea;border:2px solid #34a853}
+.bad{background:#fce8e6;border:2px solid #ea4335}
+.dup{background:#fef7e0;border:2px solid #f6c945}
+.lockmsg{display:none;margin-bottom:8px;padding:10px;border:2px solid #ea4335;background:#fce8e6;border-radius:8px;text-align:center;font-size:13px;color:#b3261e;line-height:1.6}
+.return-btn{display:none;width:100%;margin-bottom:8px;padding:10px;background:#188038;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer}
+.code-input.locked{background:#fce8e6;border-color:#ea4335}
+.list{font-size:12px;background:#fff;border-radius:6px;padding:8px;max-height:180px;overflow-y:auto}
+.list div{padding:3px 0;border-bottom:1px solid #eee}.list div:last-child{border:none}
+.cr{font-size:11px;color:#999;text-align:center;margin-top:12px}
+</style></head><body>
+<div class="hdr"><h1>📦 箱码扫码核对</h1><button class="rf" onclick="loadInfo()">🔄 刷新</button></div>
+<p class="st" id="batchInfo">加载中...</p>
+<div class="bar"><select id="batchSel"><option value="">-- 选择批次 --</option></select><select id="regionSel" style="display:none"><option value="">-- 选择区域 --</option></select></div><div class="region-board" id="regionBoardMobile"></div>
+<div class="enter"><input class="i" id="codeInput" inputmode="none" autocomplete="off" maxlength="20" placeholder="输入/扫描箱码" oninput="autoCheck(this)" onkeydown="if(event.key==='Enter')checkBox()"><button onclick="checkBox()">查询</button></div>
+<div class="tiles" id="tiles"></div>
+<div class="reset-row"><button class="reset-btn" id="resetBtn" onclick="resetRegion()">♻️ 重扫本区域</button></div>
+<div class="r" id="result"></div>
+<div id="returnBtn" class="return-btn" onclick="returnWrong()">✅ 已放回正确区域</div>
+<div id="lockMsg" class="lockmsg"></div>
+<div class="list" id="scanList"></div>
+<script>
+function esc(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+var batches=[], currentBatch=null, regionStats={}, locks={}, wrongLock={code:null};
+var audioCtx=null;
+function ensureAudio(){try{if(!audioCtx){var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audioCtx=new AC();}if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
+function tone(freq,start,dur,type,vol){if(!audioCtx)return;var o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type||'sine';o.frequency.value=freq;var t=audioCtx.currentTime+start;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.25,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+0.05);}
+function playOk(){ensureAudio();if(!audioCtx)return;tone(880,0,0.12,'sine',0.28);tone(1320,0.12,0.18,'sine',0.25);}
+function playError(){ensureAudio();if(!audioCtx)return;tone(220,0,0.15,'square',0.22);tone(165,0.18,0.22,'square',0.22);try{if(navigator.vibrate)navigator.vibrate(200);}catch(e){}}
+document.addEventListener('touchstart',function(){ensureAudio();},{passive:true});
+var _ci=document.getElementById('codeInput');if(_ci){_ci.addEventListener('focus',ensureAudio);_ci.addEventListener('touchstart',ensureAudio);}
+function focusCode(){var el=document.getElementById('codeInput');if(el)el.focus()}
+function autoCheck(el){
+  var v=(el.value||'').trim().toUpperCase();
+  if(v.length===19){el.value=v;checkBox()}
+}
+function currentLock(){var rg=currentRegion();return locks[rg]||null}
+function refreshLockUI(){
+  var lock=currentLock();var wrong=!!wrongLock.code;
+  var input=document.getElementById('codeInput');
+  var lockMsg=document.getElementById('lockMsg');
+  var returnBtn=document.getElementById('returnBtn');
+  var resetBtn=document.getElementById('resetBtn');
+  if(lock){
+    input.setAttribute('readonly','readonly');input.classList.add('locked');
+    var reason=lock.reason==='duplicate'?'重复扫码':(lock.reason==='not_found'?'清单中无此码':lock.reason);
+    lockMsg.style.display='block';lockMsg.innerHTML='🔒 当前区域已锁定（'+esc(reason)+'）<br>请联系管理员在后台解锁后才能继续扫码';
+    returnBtn.style.display='none';
+    if(resetBtn){resetBtn.disabled=true;resetBtn.style.opacity='0.5';resetBtn.style.cursor='not-allowed'}
+  }else if(wrong){
+    input.setAttribute('readonly','readonly');input.classList.add('locked');
+    lockMsg.style.display='none';
+    returnBtn.style.display='block';
+    if(resetBtn){resetBtn.disabled=true;resetBtn.style.opacity='0.5';resetBtn.style.cursor='not-allowed'}
+  }else{
+    input.removeAttribute('readonly');input.classList.remove('locked');
+    lockMsg.style.display='none';
+    returnBtn.style.display='none';
+    if(resetBtn){resetBtn.disabled=false;resetBtn.style.opacity='1';resetBtn.style.cursor='pointer'}
+  }
+}
+function renderStats(rs){
+  if(!rs)rs={expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};
+  document.getElementById('tiles').innerHTML='<div class="tile"><b>'+rs.expected+'</b><span>应扫</span></div><div class="tile ok"><b>'+rs.scanned+'</b><span>已扫</span></div><div class="tile"><b>'+rs.remaining+'</b><span>剩余</span></div><div class="tile warn"><b>'+(rs.wrong+rs.not_found+rs.duplicate)+'</b><span>异常</span></div>';
+}
+function currentRegion(){return document.getElementById('regionSel').value}
+function renderRegionStats(){
+  var r=currentRegion();
+  renderStats(r?(regionStats[r]||null):null);
+}
+function selectRegion(rg){
+  var sel=document.getElementById('regionSel');
+  sel.value=rg||'';
+  wrongLock={code:null};
+  renderRegionStats();
+  renderRegionBoardMobile();
+  refreshLockUI();
+  focusCode();
+}
+function renderRegionBoardMobile(){
+  var board=document.getElementById('regionBoardMobile');
+  if(!board)return;
+  board.innerHTML='';
+  if(!currentBatch)return;
+  var regions=currentBatch.regions||[];
+  var sel=document.getElementById('regionSel').value;
+  regions.forEach(function(rg){
+    var st=regionStats[rg]||{expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};
+    var err=(Number(st.wrong||0)+Number(st.not_found||0)+Number(st.duplicate||0));
+    var expected=Number(st.expected||0), scanned=Number(st.scanned||0);
+    var statusTxt,statusCls;
+    if(scanned===0&&err===0){statusTxt='⬜ 未开始';statusCls='st-none';}
+    else if(scanned>=expected&&err===0){statusTxt='✅ 已完成';statusCls='st-ok';}
+    else if(err>0){statusTxt='⚠️ 有异常';statusCls='st-warn';}
+    else{statusTxt='🔄 进行中';statusCls='st-run';}
+    var row=document.createElement('div');row.className='rrow'+(sel===rg?' sel':'');
+    var nm=document.createElement('div');nm.className='rname';nm.textContent=rg;
+    var stEl=document.createElement('div');stEl.className='rstat '+statusCls;stEl.textContent=statusTxt;
+    var prog=document.createElement('div');prog.className='rprog';prog.textContent=scanned+'/'+expected;
+    row.appendChild(nm);row.appendChild(stEl);row.appendChild(prog);
+    if(err>0){var er=document.createElement('div');er.className='rerr';er.textContent='异常 '+err;row.appendChild(er);}
+    row.onclick=function(){selectRegion(rg);};
+    board.appendChild(row);
+  });
+}
+function fetchJSON(url){
+  return new Promise(function(resolve,reject){
+    var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
+    var timer=setTimeout(function(){if(ctrl)ctrl.abort();reject(new Error('请求超时'))},8000);
+    var opt=ctrl?{signal:ctrl.signal,cache:'no-store'}:{cache:'no-store'};
+    fetch(url,opt).then(function(r){clearTimeout(timer);return r.json()}).then(resolve).catch(function(e){clearTimeout(timer);reject(e)});
+  });
+}
+async function loadInfo(bid){
+  try{
+    document.getElementById('batchInfo').textContent='加载中...';
+    var d=await fetchJSON('/box_batch_info'+(bid?'?batch='+bid:''));
+    batches=d.batches||[];
+    currentBatch=d.batch||null;
+    regionStats=d.region_stats||{};
+    locks=d.locks||{};
+    var bs=document.getElementById('batchSel');bs.innerHTML='';
+    if(!batches.length){bs.innerHTML='<option value="">暂无可用批次</option>';document.getElementById('batchInfo').textContent='暂无可用批次';locks={};wrongLock={code:null};renderStats(null);document.getElementById('scanList').innerHTML='';document.getElementById('regionBoardMobile').innerHTML='';refreshLockUI();return}
+    batches.forEach(function(b){var o=document.createElement('option');o.value=b.id;o.textContent=b.name;if(currentBatch&&b.id===currentBatch.id)o.selected=true;bs.appendChild(o)});
+    var rs=document.getElementById('regionSel');rs.innerHTML='<option value="">-- 选择区域 --</option>';
+    (currentBatch.regions||[]).forEach(function(rg){var o=document.createElement('option');o.value=rg;o.textContent=rg;rs.appendChild(o)});
+    if(currentBatch.regions&&currentBatch.regions.length){rs.value=currentBatch.regions[0];}
+    document.getElementById('batchInfo').textContent=currentBatch.name+' | 共'+currentBatch.total_boxes+'箱';
+    renderRegionStats();
+  renderRegionBoardMobile();
+    refreshLockUI();
+    focusCode();
+  }catch(e){
+    document.getElementById('batchInfo').textContent='加载失败，请检查网络后点刷新';
+    var bs=document.getElementById('batchSel');bs.innerHTML='<option value="">加载失败</option>';
+    renderStats(null);
+  }
+}
+document.getElementById('batchSel').onchange=function(){loadInfo(this.value)};
+document.getElementById('regionSel').onchange=function(){selectRegion(this.value)};
+async function checkBox(){
+  var code=document.getElementById('codeInput').value.trim();
+  if(!code){return}
+  if(!currentBatch){alert('请先选择批次');return}
+  var rg=currentRegion();
+  if(!rg){alert('请先选择区域');return}
+  if(!!wrongLock.code){refreshLockUI();return}
+  if(currentLock()){refreshLockUI();return}
+  var r=document.getElementById('result');
+  r.style.display='block';r.className='r';r.innerHTML='<div class="ico">⏳</div><div class="s">查询中...</div>';
+  var d;
+  try{
+    d=await fetchJSON('/box_check?batch='+currentBatch.id+'&code='+encodeURIComponent(code)+'&region='+encodeURIComponent(rg));
+  }catch(e){
+    r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">网络连接失败</div><div class="d">请确认手机和电脑在同一 WiFi，然后点刷新</div>';
+    playError();
+    document.getElementById('codeInput').focus();
+    return;
+  }
+  if(d.result==='correct'){
+    playOk();
+    r.className='r good';r.innerHTML='<div class="ico">✅</div><div class="s">正确</div><div class="d">'+esc(d.code)+'<br>'+esc(d.message)+'</div>';
+    wrongLock={code:null};
+  }else if(d.result==='duplicate'){
+    playError();
+    r.className='r dup';r.innerHTML='<div class="ico">⚠️</div><div class="s">疑似重复 / 重贴</div><div class="d">箱码 '+esc(d.code)+' 已经扫过，请检查标签是否重贴或是否重复扫码，拿不准请联系管理员</div>';
+    wrongLock={code:null};
+  }else if(d.result==='wrong_region'){
+    playError();
+    r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">放错区域</div><div class="d">'+esc(d.code)+'<br>'+esc(d.message)+'<br>请把该箱放回正确区域后，点击下方绿色按钮</div>';
+    wrongLock={code:d.code||code};
+  }else if(d.result==='not_found'){
+    playError();
+    r.className='r bad';r.innerHTML='<div class="ico">❓</div><div class="s">清单中无此箱码</div><div class="d">'+esc(d.code)+'<br>请联系管理员处理</div>';
+    wrongLock={code:null};
+  }else if(d.result==='locked'){
+    playError();
+    r.className='r bad';r.innerHTML='<div class="ico">🔒</div><div class="s">区域已锁定</div><div class="d">'+esc(d.message||'请联系管理员解锁')+'</div>';
+    wrongLock={code:null};
+  }else{
+    playError();
+    r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">'+esc(d.message||'查询失败')+'</div>';
+  }
+  refreshLockUI();
+  if(d.stats){
+    regionStats[rg]=d.stats;
+    renderRegionStats();
+    renderRegionBoardMobile();
+  }
+  var sl=document.getElementById('scanList');
+  if(d.history&&d.history.length){
+    sl.innerHTML='<b>⏱ 最近扫码</b>'+d.history.map(function(h){var t=(h.time||'').substr(11,8);var m=h.result==='correct'?'✅':(h.result==='duplicate'?'⚠️':'❌');return '<div>'+t+' '+esc(h.code)+' '+m+'</div>'}).join('');
+  }else{sl.innerHTML=''}
+  document.getElementById('codeInput').value='';
+  document.getElementById('codeInput').focus();
+}
+async function returnWrong(){
+  if(!wrongLock.code||!currentBatch){return}
+  var rg=currentRegion();if(!rg){alert('请先选择区域');return}
+  var fd=new FormData();fd.append('action','box_returned');fd.append('batch_name',currentBatch.id);fd.append('region',rg);fd.append('code',wrongLock.code);
+  try{
+    var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();
+    if(d.status==='ok'){
+      wrongLock={code:null};
+      document.getElementById('result').style.display='none';
+      document.getElementById('codeInput').value='';
+      refreshLockUI();
+      focusCode();
+      alert(d.message);
+    }else{alert('❌ '+(d.message||'操作失败'))}
+  }catch(e){alert('❌ '+e.message)}
+}
+async function resetRegion(){
+  if(!currentBatch){alert('请先选择批次');return}
+  if(currentLock()||wrongLock.code){alert('当前区域已锁定，不能重扫。请先处理异常或联系管理员');return}
+  var rg=currentRegion();
+  if(!rg){alert('请先选择区域');return}
+  if(!confirm('确认清空「'+rg+'」区域的所有扫码记录？\\n清空后该区域可以重新扫码。'))return;
+  var fd=new FormData();fd.append('action','box_reset');fd.append('batch_name',currentBatch.id);fd.append('region',rg);
+  try{
+    var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();
+    if(d.status==='ok'){
+      document.getElementById('codeInput').value='';
+      document.getElementById('result').style.display='none';
+      document.getElementById('scanList').innerHTML='';
+      await loadInfo(currentBatch.id);
+      focusCode();
+      alert(d.message);
+    }else{alert('❌ '+(d.message||'重置失败'))}
+  }catch(e){alert('❌ '+e.message)}
+}
+async function checkLockStatus(){
+  if(!currentBatch)return;
+  try{
+    var d=await fetchJSON('/box_lock_status?batch='+currentBatch.id);
+    locks=d.locks||{};
+    if(d.region_stats){regionStats=d.region_stats||{};renderRegionBoardMobile();}
+    refreshLockUI();
+  }catch(e){}
+}
+loadInfo();
+document.addEventListener('visibilitychange',function(){if(!document.hidden)loadInfo();});
+setInterval(function(){checkLockStatus()},5000);
+</script></body></html>'''
+
+# ====== 箱码扫码管理后台 ======
+BOX_ADMIN_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>箱码发货管理</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;color:#333;padding:16px;max-width:1200px;margin:0 auto}
+h1{font-size:20px;margin-bottom:10px}.toprow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}.toprow h1{margin-bottom:0}.qrbtn{padding:7px 12px;font-size:12px}.qrmodal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}.qrmodal-box{background:#fff;border-radius:12px;padding:16px;width:250px;text-align:center;position:relative}.qrmodal-close{position:absolute;top:6px;right:8px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1}.qrmodal-box img{width:200px;height:200px;display:block;margin:6px auto}.qrlabel{font-size:14px;color:#333;font-weight:600}.qrurl{font-size:11px;color:#666;word-break:break-all;margin:8px 0}.qrmodal-actions{display:flex;gap:8px;justify-content:center;margin-top:8px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.bar select,.bar input{padding:8px;border:1px solid #d0d7de;border-radius:6px;font-size:13px;background:#fff}
+.bar select{min-width:220px}.bar input{flex:1;min-width:200px}
+button{padding:8px 14px;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500}
+.b1{background:#1a73e8;color:#fff}.b2{background:#188038;color:#fff}.b3{background:#e2e8f0;color:#333}.b4{background:#d93025;color:#fff}
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}
+.tile{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;text-align:center}
+.tile b{display:block;font-size:22px}.tile span{font-size:11px;color:#888}
+.tile.warn b{color:#ea4335}.tile.ok b{color:#188038}
+.progwrap{margin-bottom:12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px}
+.progbar{height:14px;background:#edf2f7;border-radius:8px;overflow:hidden}
+.progfill{height:100%;background:linear-gradient(90deg,#38a169,#1a73e8);width:0;border-radius:8px;transition:width .3s}
+.proginfo{display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:6px;flex-wrap:wrap;gap:6px}
+.lockpanel{margin-bottom:10px;padding:10px;background:#fff;border:1px solid #f6c945;border-radius:8px;font-size:13px;color:#975a16;display:none}
+.lockpanel .lk{display:flex;align-items:center;gap:8px;padding:4px 0;flex-wrap:wrap}
+.lockpanel button{background:#d93025;color:#fff}
+.tip{font-size:12px;color:#666;margin-bottom:10px;line-height:1.7}
+.t{width:100%;border-collapse:collapse;font-size:12px;background:#fff}
+.t th,.t td{padding:7px 8px;border:1px solid #e2e8f0;text-align:left}
+.t th{background:#1a73e8;color:#fff;position:sticky;top:0;white-space:nowrap}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px}
+.ok{background:#e6f4ea;color:#188038}.pending{background:#edf2f7;color:#4a5568}.err{background:#fce8e6;color:#d93025}
+.na{text-align:center;color:#999;padding:24px}
+.upbox{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;border:1px dashed #1a73e8;border-radius:8px;padding:10px;margin-bottom:12px}
+.upbox .ut{font-size:12px;color:#666;line-height:1.6;width:100%}
+.upbox .fn{flex:1;font-size:12px;color:#333;word-break:break-all}
+.upbox input[type=file]{display:none}
+.upmsg{font-size:12px;color:#188038;width:100%;white-space:pre-wrap}
+.regionboard{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px;margin-bottom:12px}
+.rcard{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.rcard.locked{border-color:#f6c945;background:#fffdf5}
+.rcard .rh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.rcard .rname{background:none;border:none;padding:0;font:inherit;font-size:15px;font-weight:bold;color:#1a73e8;cursor:pointer;text-align:left;word-break:break-all}.rstatus{font-size:11px;padding:2px 7px;border-radius:999px;font-weight:600;white-space:nowrap;flex-shrink:0}.st-ok{background:#e6f4ea;color:#188038;border:1px solid #34a853}.st-warn{background:#fef7e0;color:#b26a00;border:1px solid #f6c945}.st-run{background:#eef4ff;color:#1a73e8;border:1px solid #1a73e8}.rsum{font-size:11px;color:#666;margin-top:6px;line-height:1.5}
+.lockbadge{background:#fce8e6;color:#b3261e;border:1px solid #ea4335;border-radius:999px;padding:2px 8px;font-size:11px;white-space:nowrap;flex-shrink:0}.unlockbtn{cursor:pointer}
+.resolvebtn{margin-top:8px;width:100%;background:#e6f4ea;color:#188038;border:1px solid #34a853;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer}.resolvebtn:hover{background:#d4edda}
+.rcard .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.rcard .m{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 4px;text-align:center}
+.rcard .m b{display:block;font-size:18px;line-height:1.2}
+.rcard .m span{font-size:10px;color:#888}
+.rcard .m span.done{display:block;font-size:9px;color:#9aa3ad;margin-top:2px;font-weight:600;line-height:1}.rcard .m span.done.has{color:#188038}
+.rcard .m.warn b{color:#d93025}.rcard .m.ok b{color:#188038}
+.rcard .m.clickable{cursor:pointer;background:#f8fafc;border:1px solid #e2e8f0}
+.rcard .m.clickable:hover{background:#f8fafc;border-color:#e2e8f0}
+.rcard .m.alert b,.rcard .m.alert span{color:#d93025}
+.rcard .m.zerogray b,.rcard .m.zerogray span{color:#9aa3ad}
+.rcard .m.alert span,.rcard .m.zerogray span{font-size:12px;font-weight:600}
+.rcard .m.clickable.active{background:#eef4ff;border-color:#1a73e8}
+.rcard .m.clickable.active b,.rcard .m.clickable.active span{color:#1a73e8}
+.rcard .mini{height:8px;background:#edf2f7;border-radius:5px;overflow:hidden;margin-bottom:8px}
+.rcard .mini i{display:block;height:100%;background:linear-gradient(90deg,#38a169,#1a73e8);transition:width .3s}
+.rcard .acts{display:flex;flex-wrap:wrap;gap:6px}
+.rcard .acts button{padding:5px 8px;font-size:11px}
+.act-unlock{background:#d93025;color:#fff}
+@media(max-width:700px){.tiles{grid-template-columns:repeat(3,1fr)}}
+</style></head><body>
+<div class="toprow"><h1>📦 箱码发货管理</h1><button class="b1 qrbtn" id="qrBtn" onclick="openQr()">📱 手机端二维码</button></div>
+<div class="upbox"><div class="ut">上传发货汇总Excel（按货件单号+总箱数展开成每箱条码，批次名=完整文件名）</div><input type="file" id="boxFile" accept=".xlsx,.xls"><button class="b1" onclick="document.getElementById('boxFile').click()">📤 选择文件</button><span class="fn" id="boxFileName">未选择文件</span><button class="b3" id="boxUploadBtn" disabled onclick="uploadBox()">上传箱码批次</button><div class="upmsg" id="upmsg"></div></div>
+<div class="bar"><select id="batchSel" onchange="loadItems()"><option value="">选择批次...</option></select><button class="b2" id="shipBtn" onclick="shipBatch()">✅ 确认发货</button><button class="b4" id="deleteBtn" onclick="deleteBatch()">🗑 删除批次</button></div>
+<div class="tip" id="batchTip">请选择批次查看明细。</div>
+<div class="regionboard" id="regionBoard"></div>
+<div class="tiles" id="tiles"></div>
+<div class="progwrap"><div class="progbar"><div class="progfill" id="progFill"></div></div><div class="proginfo"><span id="progText">已扫 0 / 应有 0</span><span id="durText">扫码用时：--</span></div></div>
+<div class="lockpanel" id="lockPanel"></div>
+<div class="bar"><select id="regionSel" onchange="loadItems()"><option value="">全部区域</option></select><input id="q" placeholder="搜索箱码，如 FBA19L909LYXU000001" onkeydown="if(event.key==='Enter')loadItems()"><button class="b1" onclick="loadItems()">🔍 查询</button><button class="b3" onclick="loadItems()">🔄 刷新</button><button class="b3" id="clearViewBtn" style="display:none" onclick="setView('')">返回全部</button></div>
+<div style="overflow-x:auto"><table class="t" id="items"><tr><th>箱码</th><th>FBA号</th><th>箱号</th><th>区域</th><th>状态</th><th>扫码时间</th></tr></table></div>
+<p style="font-size:11px;color:#999;margin-top:10px"><a href="/">← 工作台</a> | <a href="/box_scan">📱 手机扫码</a></p>
+<div class="qrmodal" id="qrModal"><div class="qrmodal-box"><button class="qrmodal-close" onclick="closeQr()">×</button><div class="qrlabel">手机扫码打开手机端</div><img src="/box_scan_qr" alt="手机端二维码"><div class="qrurl" id="qrUrl"></div><div class="qrmodal-actions"><button class="b3" onclick="copyQrUrl()">复制链接</button><button class="b1" onclick="closeQr()">关闭</button></div></div></div>
+<script>
+var batches=[], cur=null, viewMode='';
+function setView(mode){viewMode=mode;document.getElementById('q').value='';loadItems();}
+function esc(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function renderStats(st){if(!st)st={expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};document.getElementById('tiles').innerHTML='<div class="tile"><b>'+st.expected+'</b><span>应有箱数</span></div><div class="tile ok"><b>'+st.scanned+'</b><span>已扫</span></div><div class="tile"><b>'+st.remaining+'</b><span>剩余</span></div><div class="tile warn" style="cursor:pointer" onclick="setView(&#39;wrong&#39;)"><b>'+st.wrong+'</b><span>放错区域</span></div><div class="tile warn" style="cursor:pointer" onclick="setView(&#39;abnormal&#39;)"><b>'+(st.not_found+st.duplicate)+'</b><span>异常扫码</span></div>'}
+function openRegionView(region, mode){
+  var sel=document.getElementById('regionSel');
+  if(sel.value===region && viewMode===mode){mode='';}
+  sel.value=region;
+  viewMode=mode;
+  document.getElementById('q').value='';
+  loadItems();
+}
+function renderRegionBoard(d){
+  var board=document.getElementById('regionBoard');
+  board.innerHTML='';
+  var regions=d.regions||[];
+  var statsMap=d.region_stats||{};
+  var locks=d.locks||{};
+  var curRegion=document.getElementById('regionSel').value;
+  regions.forEach(function(rg){
+    var st=statsMap[rg]||{expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};
+    var lock=locks[rg]||null;
+    var pct=st.expected?Math.round(st.scanned/st.expected*100):0;
+    var wrong=Number(st.wrong||0), duplicate=Number(st.duplicate||0), notFound=Number(st.not_found||0);
+    var errCount=wrong+duplicate+notFound;
+    var complete=(Number(st.scanned||0)>=Number(st.expected||0));
+    var statusText,statusCls;
+    if(complete&&errCount===0){statusText='✅ 已完成';statusCls='st-ok';}
+    else if(complete&&errCount>0){statusText='⚠️ 有异常';statusCls='st-warn';}
+    else{statusText='🔄 进行中';statusCls='st-run';}
+    var card=document.createElement('div');card.className='rcard'+(lock?' locked':'');
+    var rh=document.createElement('div');rh.className='rh';
+    var name=document.createElement('button');name.type='button';name.className='rname';name.textContent=rg;name.onclick=function(){openRegionView(rg,'')};rh.appendChild(name);
+    var stBadge=document.createElement('span');stBadge.className='rstatus '+statusCls;stBadge.textContent=statusText;rh.appendChild(stBadge);
+    if(lock){var unlockBtn=document.createElement('button');unlockBtn.type='button';unlockBtn.className='lockbadge unlockbtn';var reason=lock.reason==='duplicate'?'重复扫码':(lock.reason==='not_found'?'清单无此码':lock.reason);unlockBtn.textContent='🔓 解锁 '+reason;unlockBtn.onclick=function(){unlockRegion(rg)};rh.appendChild(unlockBtn);}
+    card.appendChild(rh);
+    var metrics=document.createElement('div');metrics.className='metrics';
+    [[st.expected,'总箱数','',''],[st.scanned,'已扫正确','ok',null],[st.remaining,'剩余','',null],[st.wrong,'放错区域','','wrong'],[st.duplicate,'重复扫码','','duplicate'],[st.not_found,'清单无此码','','not_found']].forEach(function(m){
+      var value=m[0], label=m[1], cls=m[2], mode=m[3];
+      var alertMetric=(mode==='wrong'||mode==='duplicate'||mode==='not_found');
+      var box=document.createElement('div');
+      var classes='m'+(cls?' '+cls:'');
+      if(mode!==null && mode!==undefined){classes+=' clickable';if(alertMetric)classes+=(Number(value)>0?' alert':' zerogray');if(curRegion===rg && viewMode===mode)classes+=' active';}
+      box.className=classes;
+      var b=document.createElement('b');b.textContent=value;
+      var sp=document.createElement('span');sp.textContent=label;
+      box.appendChild(b);box.appendChild(sp);
+      if(alertMetric){var dn=document.createElement('span');dn.className='done';var rc=0;if(mode==='wrong')rc=Number(st.resolved_wrong||0);else if(mode==='duplicate')rc=Number(st.resolved_duplicate||0);else if(mode==='not_found')rc=Number(st.resolved_not_found||0);dn.textContent='已处理 '+rc;if(rc>0)dn.className='done has';box.appendChild(dn);}
+      if(mode!==null && mode!==undefined){box.onclick=function(){openRegionView(rg,mode)};}
+      metrics.appendChild(box);
+    });
+    card.appendChild(metrics);
+    var mini=document.createElement('div');mini.className='mini';
+    var fill=document.createElement('i');fill.style.width=pct+'%';mini.appendChild(fill);card.appendChild(mini);
+    var summary=document.createElement('div');summary.className='rsum';
+    if(complete&&errCount===0){summary.textContent='已完成，数量对应，无出错';}
+    else if(complete&&errCount>0){summary.textContent='箱数已扫够，异常 '+errCount+' 条（放错 '+wrong+' / 重复 '+duplicate+' / 无此码 '+notFound+'）';}
+    else{summary.textContent='进行中 '+st.scanned+'/'+st.expected+'，剩余 '+st.remaining+'，异常 '+errCount+' 条（放错 '+wrong+' / 重复 '+duplicate+' / 无此码 '+notFound+'）';}
+    card.appendChild(summary);
+    if(errCount>0){var rb=document.createElement('button');rb.type='button';rb.className='resolvebtn';rb.textContent='✅ 确认异常已处理';rb.onclick=function(){resolveAbnormal(rg)};card.appendChild(rb);}
+    board.appendChild(card);
+  });
+}
+document.getElementById('boxFile').addEventListener('change',function(){var f=this.files[0];document.getElementById('boxFileName').textContent=f?f.name:'未选择文件';document.getElementById('boxUploadBtn').disabled=!f});
+async function uploadBox(){
+  var f=document.getElementById('boxFile').files[0];
+  if(!f){document.getElementById('upmsg').textContent='请先选择 Excel 文件';return}
+  var btn=document.getElementById('boxUploadBtn');btn.disabled=true;btn.textContent='上传中...';document.getElementById('upmsg').textContent='⏳ 正在上传并展开箱码...';
+  var fd=new FormData();fd.append('file',f);fd.append('action','box_import');fd.append('batch_name',f.name);
+  try{
+    var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();
+    if(d.status==='ok'){document.getElementById('upmsg').textContent=d.message;document.getElementById('boxFile').value='';document.getElementById('boxFileName').textContent='未选择文件';btn.textContent='上传箱码批次';btn.disabled=false;await load(true);}
+    else{document.getElementById('upmsg').textContent='❌ '+(d.message||'上传失败');btn.textContent='上传箱码批次';btn.disabled=false;}
+  }catch(e){document.getElementById('upmsg').textContent='❌ '+e.message;btn.textContent='上传箱码批次';btn.disabled=false;}
+}
+async function load(autoSelect){
+  var r=await fetch('/box_admin_data');
+  var d=await r.json();batches=d.batches||[];cur=null;
+  var bs=document.getElementById('batchSel');bs.innerHTML='<option value="">选择批次...</option>';
+  batches.forEach(function(b){var o=document.createElement('option');o.value=b.id;o.textContent=b.name+(b.status==='shipped'?'（已发货）':'');bs.appendChild(o)});
+  document.getElementById('batchTip').textContent=batches.length?'请选择批次查看明细。':'暂无箱码批次，请先上传发货汇总。';
+  if(autoSelect&&batches.length){bs.value=batches[0].id;}
+  document.getElementById('shipBtn').style.display='none';
+  document.getElementById('deleteBtn').style.display='none';
+  renderStats(null);loadItems();
+}
+async function loadItems(){
+  var bid=document.getElementById('batchSel').value;
+  if(!bid){document.getElementById('items').innerHTML='<tr><th>箱码</th><th>FBA号</th><th>箱号</th><th>区域</th><th>状态</th><th>扫码时间</th></tr><tr><td colspan="6" class="na">请选择批次</td></tr>';document.getElementById('shipBtn').style.display='none';document.getElementById('deleteBtn').style.display='none';document.getElementById('progFill').style.width='0';document.getElementById('progText').textContent='已扫 0 / 应有 0';document.getElementById('durText').textContent='扫码用时：--';document.getElementById('lockPanel').style.display='none';document.getElementById('clearViewBtn').style.display='none';document.getElementById('regionBoard').innerHTML='';renderStats(null);return}
+  var selRegion=document.getElementById('regionSel').value;
+  var r=await fetch('/box_admin_data?batch='+bid+'&region='+encodeURIComponent(selRegion)+'&q='+encodeURIComponent(document.getElementById('q').value.trim())+'&view='+encodeURIComponent(viewMode));
+  var d=await r.json();cur=d.batch||null;viewMode=d.view||'';
+  var limitInfo=(d.item_count>d.shown_count)?' | 当前显示前'+d.shown_count+'条，可用箱码搜索':''; 
+  document.getElementById('batchTip').textContent=(cur?cur.name:'')+' | 筛选'+d.item_count+'箱'+limitInfo+' | '+(cur&&cur.status==='shipped'?'已发货，手机端不再显示':'扫码中');
+  document.getElementById('clearViewBtn').style.display=(d.view?'inline-block':'none');
+  document.getElementById('shipBtn').style.display=(cur&&cur.status==='active')?'inline-block':'none';
+  document.getElementById('deleteBtn').style.display=cur?'inline-block':'none';
+  var pct=(d.stats&&d.stats.expected)?Math.round(d.stats.scanned/d.stats.expected*100):0;
+  document.getElementById('progFill').style.width=pct+'%';
+  document.getElementById('progText').textContent='已扫 '+d.stats.scanned+' / 应有 '+d.stats.expected+'（'+pct+'%）';
+  var dur='扫码用时：'+(d.duration_text||'--');
+  if(d.scan_first)dur+=' | 首次 '+d.scan_first.substr(11,8);
+  if(d.scan_last)dur+=' | 最近 '+d.scan_last.substr(11,8);
+  document.getElementById('durText').textContent=dur;
+  var rs=document.getElementById('regionSel');rs.innerHTML='<option value="">全部区域</option>';
+  (d.regions||[]).forEach(function(rg){var o=document.createElement('option');o.value=rg;o.textContent=rg;rs.appendChild(o)});
+  rs.value=selRegion||'';
+  renderRegionBoard(d);
+  renderStats(d.stats);
+  var lp=document.getElementById('lockPanel');lp.innerHTML='';var locks=d.locks||{};
+  if(Object.keys(locks).length){var lt=document.createElement('b');lt.textContent='区域锁定';lp.appendChild(lt);Object.keys(locks).forEach(function(rg){var reason=locks[rg].reason==='duplicate'?'重复扫码':(locks[rg].reason==='not_found'?'清单中无此码':locks[rg].reason);var lk=document.createElement('div');lk.className='lk';var sp=document.createElement('span');sp.textContent='🔒 '+rg+'（'+reason+'）';var ub=document.createElement('button');ub.textContent='🔓 解锁';ub.onclick=function(){unlockRegion(rg)};lk.appendChild(sp);lk.appendChild(ub);lp.appendChild(lk)});lp.style.display='block';}else{lp.style.display='none'}
+  var items=d.items||[];var h='';
+  if(d.view==='wrong'){
+    h='<tr><th>箱码</th><th>扫描区域</th><th>应属区域</th><th>扫码时间</th></tr>';
+    if(!items.length)h+='<tr><td colspan="4" class="na">没有放错区域记录</td></tr>';
+    items.forEach(function(i){h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.region||'-')+'</td><td>'+esc(i.expected_region||'-')+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
+  }else if(d.view==='abnormal'||d.view==='duplicate'||d.view==='not_found'){
+    h='<tr><th>箱码</th><th>扫描区域</th><th>异常类型</th><th>说明</th><th>扫码时间</th></tr>';
+    if(!items.length)h+='<tr><td colspan="5" class="na">没有异常扫码记录</td></tr>';
+    items.forEach(function(i){h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.region||'-')+'</td><td>'+esc(i.result_label||'')+'</td><td>'+esc(i.note||'')+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
+  }else{
+    h='<tr><th>箱码</th><th>FBA号</th><th>箱号</th><th>区域</th><th>状态</th><th>扫码时间</th></tr>';
+    if(!items.length)h+='<tr><td colspan="6" class="na">没有匹配明细</td></tr>';
+    items.forEach(function(i){var st=i.status==='scanned'?'<span class="tag ok">已扫</span>':'<span class="tag pending">待扫</span>';h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.fba)+'</td><td>'+esc(i.box_no)+'</td><td>'+esc(i.region||'-')+'</td><td>'+st+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
+  }
+  document.getElementById('items').innerHTML=h;
+}
+async function shipBatch(){
+  var bid=document.getElementById('batchSel').value;if(!bid)return;
+  if(!confirm('确认此批次已经发货？确认后手机端将不再显示该批次。'))return;
+  var fd=new FormData();fd.append('action','box_ship');fd.append('batch_name',bid);
+  var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();alert(d.status==='ok'?'✅ 已确认发货':('❌ '+(d.message||'')));load();
+}
+async function deleteBatch(){
+  var bid=document.getElementById('batchSel').value;if(!bid)return;
+  if(!confirm('确认删除这个批次？删除后所有箱码和扫码记录都会清空，且无法恢复。'))return;
+  var fd=new FormData();fd.append('action','box_delete');fd.append('batch_name',bid);
+  var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();alert(d.status==='ok'?'✅ 批次已删除':('❌ '+(d.message||'')));load();
+}
+async function unlockRegion(region){
+  var bid=document.getElementById('batchSel').value;if(!bid)return;
+  if(!confirm('确认解锁「'+region+'」区域？解锁后该区域可继续扫码。'))return;
+  var fd=new FormData();fd.append('action','box_unlock');fd.append('batch_name',bid);fd.append('region',region);
+  var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();alert(d.status==='ok'?'✅ 已解锁':('❌ '+(d.message||'')));loadItems();
+}
+async function resolveAbnormal(region){
+  var bid=document.getElementById('batchSel').value;if(!bid)return;
+  if(!confirm('确认「'+region+'」区域的异常都已处理完毕？处理后手机端看板将恢复干净。'))return;
+  var fd=new FormData();fd.append('action','box_resolve_abnormal');fd.append('batch_name',bid);fd.append('region',region);
+  var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();alert(d.status==='ok'?'✅ '+d.message:('❌ '+(d.message||'')));loadItems();
+}
+var qrUrlText='';
+function setQrUrl(){fetch('/get_ip').then(function(r){return r.json()}).then(function(d){var ip=(d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1');qrUrlText='http://'+ip+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;}).catch(function(){qrUrlText='http://'+location.hostname+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;});}
+function openQr(){document.getElementById('qrModal').style.display='flex';}
+function closeQr(){document.getElementById('qrModal').style.display='none';}
+function copyQrUrl(){if(!qrUrlText){setQrUrl();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(qrUrlText).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+qrUrlText);});}else{alert('复制失败，请手动复制：'+qrUrlText);}}
+document.getElementById('qrModal').addEventListener('click',function(e){if(e.target===this)closeQr();});
+setQrUrl();
+load();
 </script></body></html>'''
 
 WORKSHOP_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>✅车间加工(手机端)</title><style>
@@ -505,7 +1246,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;c
 .na{text-align:center;font-size:12px;color:#999;padding:40px 20px}
 .cr{font-size:11px;color:#999;text-align:center;padding:12px;margin-top:8px}
 	.bt{font-size:11px;color:#cbd5e0;text-decoration:none}
-	.pri-item{background:#fffaf0;border-left:3px solid #e53e3e;margin-bottom:6px!important}</style></head><body>
+	.pri-item{background:#fffaf0;border-left:3px solid #e53e3e;margin-bottom:6px!important}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 				<div class="hd"><div style="display:flex;align-items:center;gap:8px"><h1 style="flex:1">🔧 车间加工列表(手机端) <span style="font-size:11px;color:#a0aec0;font-weight:400">'''+VERSION+'''</span></h1><a href="#" style="color:#fff;text-decoration:none;font-size:18px" onclick="showQR();return false">📱</a></div><p id="batchInfo">全部加工单</p></div>
 			<div class="filter-bar"><button id="f_pending" class="on" onclick="setFilter('pending')">📋 待处理</button><button id="f_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="f_completed" onclick="setFilter('completed')">✅ 已完成</button><button id="f_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
 			<div style="margin:0 12px 4px;padding:6px 10px;background:#fffbeb;border:1px solid #f6e05e;border-radius:6px;font-size:11px;color:#975a16">📢 开始、暂停、完工环节，须第一时间点击对应按键（如打包、下班点暂停）</div>
@@ -730,7 +1471,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f5f5;c
 .del-bar label input{cursor:pointer}
 .del-btn{background:#e53e3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer}
 .del-btn:hover{background:#c53030}
-.cb-item{width:14px;height:14px;cursor:pointer;margin-right:4px;flex-shrink:0}</style></head><body>
+.cb-item{width:14px;height:14px;cursor:pointer;margin-right:4px;flex-shrink:0}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 	<div class="hd" style="display:flex;align-items:center;gap:10px"><div><h1>🛡 管理后台</h1><p id="batchInfo">全部加工单</p><p id="debugInfo" style="font-size:10px;color:#ff0;text-align:center">加载中...</p></div></div>
 <div class="filter-bar"><button id="af_all" class="on" onclick="setFilter('all')">📋 待处理</button><button id="af_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="af_completed" onclick="setFilter('completed')">✅ 已完成</button><button id="af_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
 <div class="people-bar"><span>👥</span><input id="peopleInput" type="number" min="1" placeholder="人数" onchange="savePeople()"><span style="font-size:11px;color:#999" id="peopleLabel">上班: -</span></div>
@@ -824,7 +1565,6 @@ function toggleAll(){
     var checked=document.getElementById('selectAll').checked;
     document.querySelectorAll('.cb-item').forEach(function(c){c.checked=checked;});
     updateSelCount();
-    }catch(e){document.getElementById('batchInfo').textContent='❌ 加载失败: '+e.message;console.error(e);}
 }
 function updateSelCount(){
     var n=document.querySelectorAll('.cb-item:checked').length;
@@ -940,7 +1680,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	.calc-row .inl{display:flex;gap:10px}.calc-row .inl>div{flex:1}
 	.calc-res{padding:12px;border-radius:6px;font-size:13px;line-height:1.8;display:none}
 	.calc-res.ok{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;display:block}
-	.calc-res.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}</style></head><body>
+	.calc-res.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 		<div class="hd"><div class="hd-top">
 			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.2</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
 							<div class="people-bar"><span style="font-size:11px;color:#a0aec0">v1.2</span></div>
@@ -957,7 +1697,9 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 <div class="calc-row"><div class="inl"><div><label>数量</label><input id="calcQty" type="number" min="1" placeholder="1000" onkeydown="if(event.key==='Enter')doCalc()"></div><div><label>人数</label><input id="calcPeople" type="number" min="1" value="1" onkeydown="if(event.key==='Enter')doCalc()"></div></div></div>
 <button class="btn-s" onclick="doCalc()" style="width:100%;padding:10px;font-size:14px;margin-bottom:10px">▶ 计算用时</button>
 <div class="calc-res" id="calcResult"></div>
+	
 	<button onclick="document.getElementById('calcModal').style.display='none'" style="width:100%;padding:8px;background:#e2e8f0;border:none;border-radius:6px;font-size:12px;cursor:pointer;margin-top:6px">关闭</button>
+
 	</div></div>
 	<div class="ov" id="etaModal"><div class="bx" style="width:380px"><h3>📝 产能录入</h3><p style="font-size:11px;color:#888;margin-bottom:12px">输入实际生产数据，自动计算效率（套/人/小时）</p>
 	<div class="calc-row"><label>SKU</label><input id="etaSku" placeholder="例：PW-MSG16-001"></div>
@@ -1014,7 +1756,7 @@ async function loadBoard(){
     document.getElementById('sProcessing').textContent=processing;document.getElementById('sToday').textContent=todayItems.length;
     document.getElementById('sPriority').textContent=priority;
     document.getElementById('batchInfo').textContent='全部加工单 ('+total+'项)  |  加工中 '+processing+' 项';
-    document.getElementById('cntPending').textContent=pending;document.getElementById('cntProcessing').textContent=processing;
+    var pendingItems=items.filter(function(i){return i.status==='pending'});var pendingWithEst=pendingItems.filter(function(i){return i.est_hours}).length;var pendingWithoutEst=pending-pendingWithEst;var pendingTotalH=pendingItems.reduce(function(s,i){return s+(parseFloat(i.est_hours)||0)},0);document.getElementById('cntPending').textContent=pending+' | 共约 '+pendingTotalH.toFixed(1)+'h | 有预估'+pendingWithEst+'条，缺预估'+pendingWithoutEst+'条';document.getElementById('cntProcessing').textContent=processing;
     var pendingPri=items.filter(function(i){return i.status==='pending' && i.priority==1}).length;
     var el=document.getElementById('pendingPri');
     if(el){if(pendingPri>0){el.textContent='⭐'+pendingPri;el.style.display='inline'}else el.style.display='none'}
@@ -1178,6 +1920,50 @@ async function doCalc(){
         }else{
             res.className='calc-res err';res.innerHTML='❌ '+(d.message||'计算失败');
         }
+
+// 批量产能上传
+async function doBatchCalc(){
+	var file=document.getElementById('batchFile2').files[0];if(!file)return;
+	var reader=new FileReader();
+	reader.onload=async function(e){
+		var data=new Uint8Array(e.target.result);
+		var wb=XLSX.read(data,{type:'array'});
+		var ws=wb.Sheets[wb.SheetNames[0]];
+		var rows=XLSX.utils.sheet_to_json(ws,{header:1});
+		if(rows.length<2){alert('文件无数据');return}
+		var items=[];
+		for(var i2=1;i2<rows.length;i2++){
+			var r=rows[i2];if(!r||!r[4])continue;
+			var sku=String(r[4]||'').trim();
+			var qty=parseInt(r[11])||0;
+			var ppl=parseInt(r[13])||0;
+			if(sku&&qty>0)items.push({sku:sku,qty:qty,ppl:ppl});
+		}
+		if(!items.length){alert('未找到有效数据（E列=SKU, M列=数量）');return}
+		var bt=document.getElementById('batchResult');bt.style.display='block';
+		document.getElementById('batchTable').innerHTML='<div style=text-align:center;padding:10px;color:#666>计算中...</div>';
+		try{
+			var resp=await fetch('/calc_batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})});
+			var d=await resp.json();
+			if(d.status==='ok'){
+				var html='<table style=width:100%;font-size:11px;border-collapse:collapse>';
+				html+='<tr style=background:#f7fafc><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:left>SKU</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>数量</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>人数</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>效率</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>预计耗时</th><th style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>完成时间</th></tr>';
+				d.results.forEach(function(r2){
+					var rate=r2.rate?(typeof r2.rate==='number'?r2.rate+' 套/h':r2.rate):'-';
+					html+='<tr><td style=padding:4px 6px;border:1px solid #e2e8f0>'+escHtml(r2.sku)+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.qty+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.ppl+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+rate+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.hours+'</td><td style=padding:4px 6px;border:1px solid #e2e8f0;text-align:right>'+r2.end_time+'</td></tr>';
+				});
+				html+='</table>';
+				document.getElementById('batchTable').innerHTML=html;
+				document.getElementById('batchSummary').textContent='合计：'+d.total_qty+'套 | 共约 '+fmtHours(d.total_hours);
+			}else{
+				document.getElementById('batchTable').innerHTML='<div style=color:#e53e3e>❌ '+(d.message||'计算失败')+'</div>';
+			}
+		}catch(e2){
+			document.getElementById('batchTable').innerHTML='<div style=color:#e53e3e>请求失败: '+e2.message+'</div>';
+		}
+	};
+	reader.readAsArrayBuffer(file);
+}
     }catch(e){
         res.className='calc-res err';res.innerHTML='❌ 请求失败：'+e.message;
     }
@@ -1424,7 +2210,7 @@ body{font-family:"Microsoft YaHei",sans-serif;padding:30px;max-width:600px;margi
 button{padding:10px 20px;margin:5px;font-size:14px;cursor:pointer}
 pre{background:#f5f5f5;padding:10px;border-radius:4px;font-size:12px;max-height:300px;overflow:auto}
 input{margin:5px 0}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h2>POST诊断工具</h2>
 <p>此页用于独立测试后端POST功能，与主页逻辑完全隔离。</p>
 
@@ -1507,11 +2293,25 @@ except:
 
 
 
+BATCH_CALC_PAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'batch_calc.html')
+try:
+    with open(BATCH_CALC_PAGE_FILE, 'r', encoding='utf-8') as f:
+        BATCH_CALC_PAGE = f.read()
+except:
+    BATCH_CALC_PAGE = '<h2>Error loading page</h2>'
+
+PACKING_PAGE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packing.html')
+try:
+    with open(PACKING_PAGE_FILE, 'r', encoding='utf-8') as f:
+        PACKING_PAGE = f.read()
+except:
+    PACKING_PAGE = '<h2>Error loading page</h2>'
+
 POST_TEST_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>POST底层测试</title><style>
 body{font-family:"Microsoft YaHei",sans-serif;padding:20px;font-size:14px}
 button{padding:12px 24px;margin:8px;font-size:16px}
 pre{background:#f0f0f0;padding:10px;margin:8px 0}
-</style></head><body>
+</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 <h2>POST底层连通性测试</h2>
 
 <p>测试1: 纯文本POST（不传文件）</p>
@@ -1604,8 +2404,42 @@ class H(http.server.BaseHTTPRequestHandler):
         if p == '/health': return self._json({'status':'ok','port':PORT})
         if p == '/diag': return self._html(DIAG_PAGE)
         if p == '/us': return self._html(US_PAGE)
+        if p == '/batch_calc':
+            try:
+                with open(BATCH_CALC_PAGE_FILE, 'r', encoding='utf-8') as pf:
+                    return self._html(pf.read().strip())
+            except:
+                return self._html(BATCH_CALC_PAGE)
+        if p == '/packing':
+            try:
+                with open(PACKING_PAGE_FILE, 'r', encoding='utf-8') as pf:
+                    return self._html(pf.read().strip())
+            except:
+                return self._html(PACKING_PAGE)
         if p == '/cards': return self._html(CARDS_PAGE)
         if p == '/pt': return self._html(POST_TEST_PAGE)
+        if p == '/box_scan': return self._html(BOX_SCAN_PAGE)
+        if p == '/box_admin': return self._html(BOX_ADMIN_PAGE)
+        if p == '/box_scan_qr':
+            ip = get_ip()
+            if not ip or ip == 'localhost':
+                ip = self.headers.get('Host', '').split(':')[0] or '127.0.0.1'
+            url = 'http://' + ip + ':' + str(PORT) + '/box_scan'
+            try:
+                qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+                qr.add_data(url); qr.make(fit=True)
+                img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
+                buf = io.BytesIO(); img.save(buf, format='PNG'); data = buf.getvalue()
+            except Exception as e:
+                return self._json({'status':'error','message':str(e)})
+            self.send_response(200)
+            self.send_header('Content-Type','image/png')
+            self.send_header('Content-Length',str(len(data)))
+            self.send_header('Cache-Control','no-cache, no-store, must-revalidate')
+            self.send_header('Access-Control-Allow-Origin','*')
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if p == '/get_ip': return self._json({'ip':get_ip()})
         if p.startswith('/scan_info'):
 
@@ -1678,6 +2512,109 @@ class H(http.server.BaseHTTPRequestHandler):
         if p.startswith('/scan_batches'):
             return self._json(get_all_batches())
         
+        if p.startswith('/box_batch_info'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            bid = int(q.get('batch',['0'])[0]) if q.get('batch',['0'])[0].isdigit() else 0
+            batches = get_box_batches(active_only=True)
+            batch = next((b for b in batches if b['id'] == bid), None) if bid else (batches[0] if batches else None)
+            if not batch:
+                return self._json({'batches':batches, 'batch':None, 'regions':[], 'region_stats':{}, 'stats':None, 'locks':{}})
+            regions = batch['regions']
+            region_stats = {rg: get_box_stats(batch['id'], rg) for rg in regions}
+            return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(batch['id']), 'locks':get_box_locks(batch['id'])})
+        
+        if p.startswith('/box_lock_status'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            bid = int(q.get('batch',['0'])[0]) if q.get('batch',['0'])[0].isdigit() else 0
+            if not bid:
+                return self._json({'locks':{}, 'region_stats':{}})
+            batches = get_box_batches(active_only=False)
+            batch = next((b for b in batches if b['id'] == bid), None)
+            regions = batch['regions'] if batch else []
+            region_stats = {rg: get_box_stats(bid, rg) for rg in regions}
+            return self._json({'locks':get_box_locks(bid), 'region_stats':region_stats})
+        
+        if p.startswith('/box_admin_data'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            batches = get_box_batches(active_only=False)
+            bid = int(q.get('batch',['0'])[0]) if q.get('batch',['0'])[0].isdigit() else 0
+            if not bid:
+                return self._json({'batches':batches, 'batch':None, 'regions':[], 'region_stats':{}, 'stats':None, 'items':[], 'locks':{}})
+            batch = next((b for b in batches if b['id'] == bid), None)
+            if not batch:
+                return self._json({'batches':batches, 'batch':None, 'regions':[], 'region_stats':{}, 'stats':None, 'items':[], 'locks':{}})
+            regions = batch['regions']
+            region_stats = {rg: get_box_stats(bid, rg) for rg in regions}
+            region = q.get('region',[''])[0].strip()
+            keyword = q.get('q',[''])[0].strip().upper()
+            view = q.get('view',[''])[0].strip().lower()
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            scan_first = ''; scan_last = ''; duration_text = ''
+            c.execute("SELECT MIN(scanned_at), MAX(scanned_at) FROM box_scans WHERE batch_id=? AND result='correct'", (bid,))
+            scan_row = c.fetchone()
+            if scan_row and scan_row[0]:
+                scan_first = scan_row[0] or ''
+                scan_last = scan_row[1] or ''
+                end_value = scan_last if batch['status'] == 'shipped' else datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                try:
+                    start_dt = datetime.datetime.strptime(scan_first, '%Y-%m-%d %H:%M:%S')
+                    end_dt = datetime.datetime.strptime(end_value, '%Y-%m-%d %H:%M:%S')
+                    seconds = int(max(0, (end_dt - start_dt).total_seconds()))
+                    if seconds < 60:
+                        duration_text = str(seconds) + '秒'
+                    else:
+                        hours = seconds // 3600
+                        minutes = (seconds % 3600) // 60
+                        duration_text = (str(hours) + '小时' if hours else '') + str(minutes) + '分钟'
+                except:
+                    pass
+            if view in ('wrong', 'duplicate', 'not_found', 'abnormal'):
+                scan_where = 's.batch_id=?'
+                scan_args = [bid]
+                if region:
+                    scan_where += ' AND s.region=?'; scan_args.append(region)
+                if view == 'wrong':
+                    scan_where += " AND s.result='wrong_region'"
+                elif view == 'duplicate':
+                    scan_where += " AND s.result='duplicate'"
+                elif view == 'not_found':
+                    scan_where += " AND s.result='not_found'"
+                else:
+                    scan_where += " AND s.result IN ('not_found','duplicate')"
+                c.execute('SELECT s.code, s.worker, s.result, s.region, s.note, s.scanned_at, i.region FROM box_scans s LEFT JOIN box_items i ON i.batch_id=s.batch_id AND i.code=s.code WHERE '+scan_where+' ORDER BY s.id DESC LIMIT 500', scan_args)
+                rows = c.fetchall()
+                items = []
+                for r in rows:
+                    result = r[2]
+                    label = '放错区域' if result == 'wrong_region' else ('重复扫码' if result == 'duplicate' else '清单中无此码')
+                    items.append({'code':r[0] or '', 'worker':r[1] or '', 'result_type':result, 'result_label':label, 'region':r[3] or '', 'note':r[4] or '', 'scanned_at':r[5] or '', 'expected_region':r[6] or ''})
+                item_count = len(items); shown_count = len(items)
+                conn.close()
+                return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(bid, region), 'item_count':item_count, 'shown_count':shown_count, 'items':items, 'view':view, 'scan_first':scan_first, 'scan_last':scan_last, 'duration_text':duration_text, 'locks':get_box_locks(bid)})
+            where = 'batch_id=?'
+            args = [bid]
+            if region:
+                where += ' AND region=?'; args.append(region)
+            if keyword:
+                where += ' AND code LIKE ?'; args.append('%'+keyword+'%')
+            c.execute('SELECT COUNT(*) FROM box_items WHERE '+where, args)
+            item_count = c.fetchone()[0]
+            sql = 'SELECT code, fba, box_no, region, status, scanned_at FROM box_items WHERE '+where+' ORDER BY id LIMIT 500'
+            c.execute(sql, args)
+            items = [{'code':i[0],'fba':i[1],'box_no':i[2],'region':i[3] or '', 'status':i[4], 'scanned_at':i[5] or ''} for i in c.fetchall()]
+            conn.close()
+            return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(bid, region), 'item_count':item_count, 'shown_count':len(items), 'items':items, 'view':'', 'scan_first':scan_first, 'scan_last':scan_last, 'duration_text':duration_text, 'locks':get_box_locks(bid)})
+        
+        if p.startswith('/box_check'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            bid = int(q.get('batch',['0'])[0]) if q.get('batch',['0'])[0].isdigit() else 0
+            code = q.get('code',[''])[0]
+            worker = q.get('worker',[''])[0].strip()
+            region = q.get('region',[''])[0].strip()
+            if not bid or not code:
+                return self._json({'result':'error','message':'缺少批次或箱码','stats':None,'history':[]})
+            return self._json(box_check_code(bid, code, worker, region))
+        
         if p == '/workshop': return self._html(WORKSHOP_PAGE)
         if p == '/workshop_board': return self._html(WORKSHOP_BOARD)
         if p == '/workshop_admin': return self._html(WORKSHOP_ADMIN)
@@ -1736,6 +2673,42 @@ class H(http.server.BaseHTTPRequestHandler):
             else:
                 end_str = str(end.month)+'月'+str(end.day)+'日 '+end.strftime('%H:%M')
             return self._json({'status':'ok','hours':hours,'end_time':end_str,'rate':round(rate*60,1),'source':'历史记录'})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         if p.startswith('/get_efficiency'):
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
             c.execute('SELECT sku, rate, note, created_at FROM efficiency ORDER BY sku')
@@ -1800,6 +2773,36 @@ class H(http.server.BaseHTTPRequestHandler):
             print(f'[POST] CL={self.headers.get("Content-Length","?")}', flush=True)
             b = self.rfile.read(int(self.headers['Content-Length'])); print(f'[POST] read {len(b)} bytes, first 100: {b[:100]}', flush=True)
             boundary = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', ct)
+            # 批量产能计算 (JSON)
+            if ct.startswith('application/json'):
+                try:
+                    body = json.loads(b.decode('utf-8'))
+                    items = body.get('items', [])
+                    results = []
+                    for item in items:
+                        sku = item.get('sku','').strip().upper()
+                        qty = int(item.get('qty', 0))
+                        ppl = int(item.get('ppl', 0)) or 1
+                        if not sku or qty <= 0:
+                            results.append({'sku':sku or '(空)','qty':qty,'ppl':ppl,'rate':'','hours':'','end_time':'','error':'参数错误'})
+                            continue
+                        est = calc_est_completion(sku, 'x'+str(ppl))
+                        if not est or not est.get('rate'):
+                            results.append({'sku':sku,'qty':qty,'ppl':ppl,'rate':'缺','hours':'缺预估','end_time':'缺预估'})
+                            continue
+                        rate = est['rate']
+                        hours = round(qty / (rate * 60 * ppl), 1)
+                        now = datetime.datetime.now()
+                        end = calc_end_time(now, qty / (rate * ppl))
+                        if end.date() == now.date(): end_str = end.strftime('%H:%M')
+                        else: end_str = str(end.month)+'月'+str(end.day)+'日 '+end.strftime('%H:%M')
+                        results.append({'sku':sku,'qty':qty,'ppl':ppl,'rate':round(rate*60,1),'hours':hours,'end_time':end_str})
+                    total_hours = sum(r['hours'] for r in results if isinstance(r.get('hours'),(int,float)))
+                    total_qty = sum(r['qty'] for r in results)
+                    return self._json({'status':'ok','results':results,'total_hours':round(total_hours,1),'total_qty':total_qty})
+                except Exception as e2:
+                    return self._json({'status':'error','message':str(e2)})
+
             if not boundary: print('[POST] NO boundary found in CT', flush=True); return self._json({'status':'error','message':'No boundary'})
             bnd = boundary.group(1) or boundary.group(2)
             parts = b.split(('--'+bnd).encode()); print(f'[POST] boundary={bnd}, parts={len(parts)}', flush=True)
@@ -1825,7 +2828,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # Debug logging
             print(f'[DEBUG] POST action=\"{action}\" fname=\"{fname}\" fdata_size={len(fdata) if fdata else 0} parts={len(parts)}', flush=True)
             # Non-upload actions don't need a file
-            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'save_efficiency', 'delete_efficiency'):
+            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'save_efficiency', 'delete_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal'):
                 pass  # handle below
             elif not fdata or not fname:
                 return self._json({'status':'error','message':'No file'})
@@ -1951,6 +2954,74 @@ class H(http.server.BaseHTTPRequestHandler):
                 ip = get_ip()
                 region_info = '\n\u533a\u57df\uff1a' + ('\u3001'.join(sorted(regions)) if regions else '\u65e0')
                 return self._json({'status':'ok','message':'\u2705 \u6279\u6b21\u5df2\u5bfc\u5165 (ID:'+str(bid)+')\n\u540d\u79f0\uff1a'+(batch_name or os.path.basename(fname).replace('.xlsx',''))+'\nSKU\u6761\u7801\uff1a'+str(cnt)+'\u9879'+region_info+'\n\n\U0001f4f1 \u5de5\u4eba\u626b\u7801\uff1ahttp://'+ip+':'+str(PORT)+'/scan\n\U0001f4ca \u7ba1\u7406\u540e\u53f0\uff1ahttp://'+ip+':'+str(PORT)+'/scan_admin'})
+            if action == 'box_import':
+                batch_name = batch_name or os.path.basename(fname)
+                bid, cnt, skipped_rows, skipped_boxes, regions = import_box_batch(save_path, batch_name)
+                log_box_event(bid, '', 'batch_import', '', '后台', batch_name+' 共'+str(cnt)+'箱')
+                ip = get_ip()
+                region_info = '\n区域：' + ('、'.join(sorted(regions)) if regions else '无')
+                skip_info = '\n已跳过无货件单号行：'+str(skipped_rows)+'行（通常为小计/合计行）' if skipped_rows else ''
+                return self._json({'status':'ok','message':'✅ 箱码批次已导入\n批次：'+batch_name+'\n共展开 '+str(cnt)+' 个箱码'+region_info+skip_info+'\n\n📱 手机扫码：http://'+ip+':'+str(PORT)+'/box_scan\n📊 管理后台：http://'+ip+':'+str(PORT)+'/box_admin'})
+            if action == 'box_ship':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                if bid:
+                    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                    c.execute('UPDATE box_batches SET status=\'shipped\' WHERE id=?', (bid,))
+                    conn.commit(); conn.close()
+                    log_box_event(bid, '', 'batch_shipped', '', '管理员', '确认发货')
+                    return self._json({'status':'ok','message':'已确认发货，手机端不再显示该批次'})
+                return self._json({'status':'error','message':'无效批次ID'})
+            if action == 'box_delete':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                if bid:
+                    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                    row = c.execute('SELECT name FROM box_batches WHERE id=?', (bid,)).fetchone()
+                    deleted_name = row[0] if row else ''
+                    log_box_event(bid, '', 'batch_deleted', '', '管理员', deleted_name)
+                    c.execute('DELETE FROM box_scans WHERE batch_id=?', (bid,))
+                    c.execute('DELETE FROM box_items WHERE batch_id=?', (bid,))
+                    c.execute('DELETE FROM box_locks WHERE batch_id=?', (bid,))
+                    c.execute('DELETE FROM box_batches WHERE id=?', (bid,))
+                    conn.commit(); conn.close()
+                    return self._json({'status':'ok','message':'批次已删除，可重新上传'})
+                return self._json({'status':'error','message':'无效批次ID'})
+            if action == 'box_reset':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                region = self._get_post('region', '').strip()
+                if not bid or not region:
+                    return self._json({'status':'error','message':'请选择批次和区域'})
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute('DELETE FROM box_scans WHERE batch_id=? AND region=?', (bid, region))
+                c.execute('UPDATE box_items SET status=\'pending\', scanned_at=NULL WHERE batch_id=? AND region=?', (bid, region))
+                c.execute('DELETE FROM box_locks WHERE batch_id=? AND region=?', (bid, region))
+                conn.commit(); conn.close()
+                log_box_event(bid, region, 'region_reset', '', '管理员', '重扫本区域')
+                return self._json({'status':'ok','message':'本区域扫码记录已清空，可以重新扫码'})
+            if action == 'box_unlock':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                region = self._get_post('region', '').strip()
+                if not bid or not region:
+                    return self._json({'status':'error','message':'请选择批次和区域'})
+                clear_box_lock(bid, region)
+                return self._json({'status':'ok','message':'该区域已解锁，可以继续扫码'})
+            if action == 'box_resolve_abnormal':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                region = self._get_post('region', '').strip()
+                if not bid or not region:
+                    return self._json({'status':'error','message':'请选择批次和区域'})
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute('UPDATE box_scans SET resolved=1 WHERE batch_id=? AND region=? AND result IN (\'not_found\',\'duplicate\') AND resolved=0', (bid, region))
+                conn.commit(); conn.close()
+                log_box_event(bid, region, 'abnormal_resolved', '', '管理员', '确认异常已处理')
+                return self._json({'status':'ok','message':'该区域异常已标记处理'})
+            if action == 'box_returned':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                region = self._get_post('region', '').strip()
+                code = self._get_post('code', '').strip().upper()
+                if not bid or not region or not code:
+                    return self._json({'status':'error','message':'参数错误'})
+                log_box_event(bid, region, 'wrong_region_returned', code, '工人', '已放回正确区域')
+                return self._json({'status':'ok','message':'已确认放回正确区域，请继续扫码'})
             if action == 'save_efficiency':
                 sku = self._get_post('sku', '').strip().upper()
                 rate = self._get_post('rate', '')
@@ -2175,7 +3246,7 @@ def run_us(fp):
         for k,pv in pk.items():
             if k.startswith(doc): b+=pv['b']; w+=pv['w']; vol+=pv['v']
         rd[rg].append((doc,v[0],v[1],ch,v[3],v[4],b,round(w,2),round(vol,2),v[5]))
-    row=2; gb=0; gw=0.0; gv=0.0
+    row=2; gb=0; gw=0.0; gv=0.0; rg_stats={}
     for rg in ro:
         items=rd.get(rg,[])
         if not items: continue
@@ -2183,16 +3254,16 @@ def run_us(fp):
             for i,v in enumerate(it,1): c=ows.cell(row,i,v); c.font=nf; c.border=bd; c.alignment=Alignment(vertical='center')
             row+=1
         sb=sum(i[6] for i in items); sw=sum(i[7] for i in items); sv=sum(i[8] for i in items)
-        ows.cell(row,1,rg+' \u5c0f\u8ba1').font=Font(size=11); ows.cell(row,7,sb).font=Font(size=11); ows.cell(row,8,round(sw,2)).font=Font(size=11); ows.cell(row,9,round(sv,2)).font=Font(size=11)
+        ows.cell(row,5,rg+' \u5c0f\u8ba1 '+str(len(items))+'\u5355').font=Font(size=11); ows.cell(row,7,sb).font=Font(size=11); ows.cell(row,8,round(sw,2)).font=Font(size=11); ows.cell(row,9,round(sv,2)).font=Font(size=11)
         for i in range(1,11): ows.cell(row,i).border=bd; ows.cell(row,i).fill=sfl; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
-        row+=1; gb+=sb; gw+=sw; gv+=sv
-    ows.cell(row,1,'\u5408\u8ba1').font=bf; ows.cell(row,7,gb).font=bf; ows.cell(row,8,round(gw,2)).font=bf; ows.cell(row,9,round(gv,2)).font=bf
+        row+=1; gb+=sb; gw+=sw; gv+=sv; rg_stats[rg]=(len(items),sb,round(sw,2),round(sv,2))
+    ows.cell(row,5,'\u5408\u8ba1 '+str(len(d))+'\u5355').font=bf; ows.cell(row,7,gb).font=bf; ows.cell(row,8,round(gw,2)).font=bf; ows.cell(row,9,round(gv,2)).font=bf
     for i in range(1,11): ows.cell(row,i).border=bd; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
     for i,w in enumerate([18,12,10,22,22,8,10,14,14,20],1): ows.column_dimensions[get_column_letter(i)].width=w
     fn=re.sub(r'[-]*\d+(?:[-]*\d+)*$','',os.path.basename(fp).replace('.xlsx','')).rstrip('-').replace('\ufffd','')
     fout=os.path.join(DESKTOP,fn+'\u6c47\u603b.xlsx')
     out.save(fout)
-    return '\u2705 \u7f8e\u56fd\u53d1\u8d27\u6c47\u603b\n\u5408\u8ba1\uff1a'+str(len(d))+'\u5355\uff0c'+str(gb)+'\u7bb1\uff0c'+str(round(gw,2))+'kg\uff0c'+str(round(gv,2))+'m3\n'+'\n'.join([rg+': '+str(len(rd[rg]))+'\u5355' for rg in ro if rd[rg]])+'\n\u6587\u4ef6\uff1a'+fout
+    return '\u2705 \u7f8e\u56fd\u53d1\u8d27\u6c47\u603b\n\u5408\u8ba1\uff1a'+str(len(d))+'\u5355\uff0c'+str(gb)+'\u7bb1\uff0c'+str(round(gw,2))+'kg\uff0c'+str(round(gv,2))+'m3\n'+'\n'.join([rg+': '+str(rg_stats[rg][0])+'\u5355\uff0c'+str(rg_stats[rg][1])+'\u7bb1\uff0c'+str(rg_stats[rg][2])+'kg\uff0c'+str(rg_stats[rg][3])+'m\u00b3' for rg in ro if rg in rg_stats if rd[rg]])+'\n\u6587\u4ef6\uff1a'+fout
 
 def run_ca(fp):
     import openpyxl; from collections import OrderedDict
@@ -2231,10 +3302,10 @@ def run_ca(fp):
         vs=[doc,v[0],v[1],v[2],b,round(w,2),round(vol,2),v[3]]
         for i,val in enumerate(vs,1): c=ows.cell(row,i,val); c.font=nf; c.border=bd; c.alignment=Alignment(vertical='center')
         row+=1; gb+=b; gw+=w; gv+=vol
-    ows.cell(row,1,'\u5408\u8ba1').font=bf; ows.cell(row,5,gb).font=bf; ows.cell(row,6,round(gw,2)).font=bf; ows.cell(row,7,round(gv,2)).font=bf
+    ows.cell(row,1,'\u5408\u8ba1 '+str(len(d))+'\u5355').font=bf; ows.cell(row,5,gb).font=bf; ows.cell(row,6,round(gw,2)).font=bf; ows.cell(row,7,round(gv,2)).font=bf
     for i in range(1,9): ows.cell(row,i).border=bd; ows.cell(row,i).alignment=Alignment(horizontal='center',vertical='center')
     for i,w in enumerate([18,14,14,10,10,14,14,20],1): ows.column_dimensions[get_column_letter(i)].width=w
-    fn=re.sub(r'[-]*\d+(?:[-]*\d+)*$','',os.path.basename(fp).replace('.xlsx','')).rstrip('-').replace('\ufffd','')
+    fn=os.path.basename(fp).replace('.xlsx','');idx=fn.find('\u53d1\u8d27\u5355');fn=(fn[:idx+3] if idx>=0 else fn).rstrip('-')
     fout=os.path.join(DESKTOP,fn+'\u6c47\u603b.xlsx')
     out.save(fout)
     return '\u2705 \u52a0\u62ff\u5927\u53d1\u8d27\u6c47\u603b\n\u5408\u8ba1\uff1a'+str(len(d))+'\u5355\uff0c'+str(gb)+'\u7bb1\uff0c'+str(round(gw,2))+'kg\uff0c'+str(round(gv,2))+'m3\n\u6587\u4ef6\uff1a'+fout
