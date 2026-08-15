@@ -584,7 +584,11 @@ function renderEtaQueryResults(){
         if(it.note) html+="<br><span style='color:#888;font-size:11px'>"+(isManual?"手动 ":"自动 ")+escHtml(it.note)+"</span>";
         html+="<br><span style='color:#aaa;font-size:11px'>"+escHtml(it.created||"")+"</span>";
         if(!isManual) html+=" <span style='color:#38a169;font-size:10px'>[加工完成]</span>";
-        html+="<button class='del-eta-btn' style='background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px' onclick=\"delEtaQueryItem('"+escHtml(it.sku).replace(/'/g,"")+"')\">X</button>";
+        if(isManual){
+            html+="<button class='del-eta-btn' style='background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px' onclick=\"delEtaQueryItem('"+escHtml(it.sku).replace(/'/g,"")+"')\">X</button>";
+        }else{
+            html+="<button class='del-eta-btn' style='background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px' onclick=\"delJobEtaItem("+it.id+")\">X</button>";
+        }
         html+="</div></div>";
     }
     el.innerHTML=html;
@@ -611,6 +615,18 @@ async function deleteSelectedEtaQuery(){
     }
     alert("已删除 "+ok+" 条"+(fail?"，失败 "+fail+" 条":""));
     searchEtaQuery();
+}
+
+async function delJobEtaItem(id){
+    if(!confirm("确定删除这条加工完成记录？")) return;
+    try{
+        var fd=new FormData();
+        fd.append("action","delete_job_efficiency");
+        fd.append("id",id);
+        var r=await fetch("/run",{method:"POST",body:fd});
+        var d=await r.json();
+        if(d.status==="ok"){searchEtaQuery();}else{alert(d.message||"删除失败");}
+    }catch(e){alert(e.message);}
 }
 
 async function delEtaQueryItem(sku){

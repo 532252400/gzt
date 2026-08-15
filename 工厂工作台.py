@@ -2720,9 +2720,9 @@ class H(http.server.BaseHTTPRequestHandler):
                 sku, rate, note, created = r
                 if kw and kw not in (sku or '').upper(): continue
                 out.append({'type':'manual','sku':sku,'rate':rate,'note':note or '','created':created or ''})
-            c.execute('SELECT sku, completed_qty, started_at, completed_at, worker FROM job_items WHERE status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC')
+            c.execute('SELECT id, sku, completed_qty, started_at, completed_at, worker FROM job_items WHERE status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC')
             for r in c.fetchall():
-                sku, qty, started, completed, worker = r
+                rid, sku, qty, started, completed, worker = r
                 if kw and kw not in (sku or '').upper(): continue
                 try:
                     st = datetime.datetime.fromisoformat(started)
@@ -2731,7 +2731,7 @@ class H(http.server.BaseHTTPRequestHandler):
                     m = re.search(r'x(\d+)', worker or '')
                     ppl = int(m.group(1)) if m else 1
                     rate = round(qty / (mins/60) / ppl, 2)
-                    out.append({'type':'job','sku':sku,'rate':rate,'note':str(qty)+'个/'+str(ppl)+'人/'+str(round(mins/60,1))+'时','created':(completed or '')[:16]})
+                    out.append({'type':'job','id':rid,'sku':sku,'rate':rate,'note':str(qty)+'个/'+str(ppl)+'人/'+str(round(mins/60,1))+'时','created':(completed or '')[:16]})
                 except: pass
             conn.close()
             return self._json(out)
@@ -2855,7 +2855,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # Debug logging
             print(f'[DEBUG] POST action=\"{action}\" fname=\"{fname}\" fdata_size={len(fdata) if fdata else 0} parts={len(parts)}', flush=True)
             # Non-upload actions don't need a file
-            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'save_efficiency', 'delete_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal'):
+            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal'):
                 pass  # handle below
             elif not fdata or not fname:
                 return self._json({'status':'error','message':'No file'})
@@ -3082,6 +3082,15 @@ class H(http.server.BaseHTTPRequestHandler):
                     c.execute('DELETE FROM efficiency WHERE sku=?', (sku,))
                     conn.commit(); conn.close()
                     return self._json({'status':'ok','message':'已删除'})
+                return self._json({'status':'error','message':'参数错误'})
+
+            if action == 'delete_job_efficiency':
+                item_id = self._get_post('id', '').strip()
+                if item_id.isdigit():
+                    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                    c.execute("DELETE FROM job_items WHERE id=? AND status='completed'", (int(item_id),))
+                    conn.commit(); conn.close()
+                    return self._json({'status':'ok','message':'已删除加工完成记录'})
                 return self._json({'status':'error','message':'参数错误'})
             print(f'[POST] dispatching action={action}', flush=True)
             func = {'lbl100':run_lbl100,'lbl30':run_lbl30,'us':run_us,'ca':run_ca,'rc':run_rc}.get(action)
