@@ -2672,7 +2672,8 @@ class H(http.server.BaseHTTPRequestHandler):
                 end_str = end.strftime('%H:%M')
             else:
                 end_str = str(end.month)+'月'+str(end.day)+'日 '+end.strftime('%H:%M')
-            return self._json({'status':'ok','hours':hours,'end_time':end_str,'rate':round(rate*60,1),'source':'历史记录'})
+            src_label = {'manual':'产能录入','history':'加工单历史','preset':'预设效率'}.get(est.get('source'),'历史记录')
+            return self._json({'status':'ok','hours':hours,'end_time':end_str,'rate':round(rate*60,1),'source':src_label})
 
 
 
@@ -2708,6 +2709,32 @@ class H(http.server.BaseHTTPRequestHandler):
 
 
 
+
+        if p.startswith('/query_efficiency'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            kw = (q.get('sku',[''])[0] or '').strip().upper()
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            out = []
+            c.execute('SELECT sku, rate, note, created_at FROM efficiency ORDER BY sku')
+            for r in c.fetchall():
+                sku, rate, note, created = r
+                if kw and kw not in (sku or '').upper(): continue
+                out.append({'type':'manual','sku':sku,'rate':rate,'note':note or '','created':created or ''})
+            c.execute('SELECT sku, completed_qty, started_at, completed_at, worker FROM job_items WHERE status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC')
+            for r in c.fetchall():
+                sku, qty, started, completed, worker = r
+                if kw and kw not in (sku or '').upper(): continue
+                try:
+                    st = datetime.datetime.fromisoformat(started)
+                    en = datetime.datetime.fromisoformat(completed)
+                    mins = max((en-st).total_seconds()/60, 1)
+                    m = re.search(r'x(\d+)', worker or '')
+                    ppl = int(m.group(1)) if m else 1
+                    rate = round(qty / (mins/60) / ppl, 2)
+                    out.append({'type':'job','sku':sku,'rate':rate,'note':str(qty)+'个/'+str(ppl)+'人/'+str(round(mins/60,1))+'时','created':(completed or '')[:16]})
+                except: pass
+            conn.close()
+            return self._json(out)
 
         if p.startswith('/get_efficiency'):
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
@@ -3029,13 +3056,22 @@ class H(http.server.BaseHTTPRequestHandler):
                 sku = self._get_post('sku', '').strip().upper()
                 rate = self._get_post('rate', '')
                 note = self._get_post('note', '')
+                if not rate:
+                    qty = self._get_post('qty', '')
+                    people = self._get_post('people', '')
+                    hours = self._get_post('hours', '')
+                    if qty and people and hours:
+                        try:
+                            rate = str(round(float(qty)/float(people)/float(hours), 2))
+                        except Exception:
+                            rate = ''
                 if sku and rate:
                     try:
                         rate = float(rate)
                         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
                         c.execute('INSERT OR REPLACE INTO efficiency (sku, rate, note, created_at) VALUES (?,?,?,?)', (sku, rate, note, datetime.datetime.now().isoformat()[:19]))
                         conn.commit(); conn.close()
-                        return self._json({'status':'ok','message':sku+' = '+str(rate)+' 已保存'})
+                        return self._json({'status':'ok','message':sku+' = '+str(rate)+' 已保存','rate':rate})
                     except Exception as e:
                         return self._json({'status':'error','message':str(e)})
                 return self._json({'status':'error','message':'参数错误'})
@@ -3421,7 +3457,7 @@ def calc_est_completion(sku, current_worker):
         if m:
             conn.close()
             cur_ppl = int(re.search(r'x(\d+)', current_worker or '').group(1)) if re.search(r'x(\d+)', current_worker or '') else 1
-            return {'rate': round(m[0] / 60, 4), 'cur_ppl': cur_ppl}
+            return {'rate': round(m[0] / 60, 4), 'cur_ppl': cur_ppl, 'source':'manual'}
         # 取所有完成记录（含人数和暂停时间）
         c.execute('SELECT completed_qty, completed_at, started_at, worker, IFNULL(paused_seconds,0) FROM job_items WHERE sku=? AND status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC', (sku_upper,))
         rows = c.fetchall()
@@ -3444,6 +3480,7 @@ def calc_est_completion(sku, current_worker):
             if len(rates) >= 3:
                 rates = rates[1:-1]  # 去掉最高最低
             rate_per_min = sum(rates) / len(rates)
+            source = 'history'
         else:
             # 无历史记录：使用预设效率（套/人/小时 → 套/人/分钟）
             preset = {'pw-msg16-001':21.35,'pw-msg12-001':16.31,'cb-cmsg-01a':29.20,'cb-msg08-a01':13.50,
@@ -3451,8 +3488,9 @@ def calc_est_completion(sku, current_worker):
                 'gn-fqj15-001':15.00,'hs-msg32-001':15.56,'co-msg08-a01':10.50,'sp-cms04-002':9.60,'sp-msg04-002':9.60}.get(sku_upper.lower())
             if not preset: return None
             rate_per_min = preset / 60  # 转换为每分钟效率
+            source = 'preset'
         
-        return {'rate': round(rate_per_min, 4), 'cur_ppl': cur_ppl}
+        return {'rate': round(rate_per_min, 4), 'cur_ppl': cur_ppl, 'source': source}
     except: return None
 
 def calc_end_time(start_dt, work_minutes):
