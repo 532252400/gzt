@@ -1693,7 +1693,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 		</div></div>
 		<div class="stats"><div class="stat-item gray"><div class="num" id="sTotal">0</div><div class="lbl">全部</div></div><div class="stat-item blue"><div class="num" id="sPending">0</div><div class="lbl">待处理</div></div><div class="stat-item orange"><div class="num" id="sProcessing">0</div><div class="lbl">加工中</div></div><div class="stat-item green"><div class="num" id="sToday">0</div><div class="lbl">今日完成</div></div><div class="stat-item red"><div class="num" id="sPriority">0</div><div class="lbl">⭐优先</div></div></div>
 				<div class="filter-bar"><button id="bf_all" class="on" onclick="setFilter('all')">📋 全部</button><button id="bf_pending" onclick="setFilter('pending')">⏸ 待处理</button><button id="bf_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="bf_today" onclick="setFilter('today')">✅ 今日完成</button><button id="bf_history" onclick="setFilter('history')">📋 历史完成</button><button id="bf_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
-				<div id="abnormalBar" style="display:none;gap:6px;padding:6px 16px;background:#fff;border-bottom:1px solid #e2e8f0;flex-wrap:wrap"><button class="abn-filter on" data-abn="all" onclick="setAbnormalFilter('all')">全部</button><button class="abn-filter" data-abn="pending" onclick="setAbnormalFilter('pending')">⚠ 待核对</button><button class="abn-filter" data-abn="time" onclick="setAbnormalFilter('time')">⏱ 时间异常</button><button class="abn-filter" data-abn="worker" onclick="setAbnormalFilter('worker')">👥 人数异常</button><button class="abn-filter" data-abn="rate" onclick="setAbnormalFilter('rate')">⚡ 效率异常</button><button class="abn-filter" data-abn="pause" onclick="setAbnormalFilter('pause')">⏸ 暂停未扣</button><button class="abn-filter" data-abn="normal" onclick="setAbnormalFilter('normal')">正常</button></div>
+				<div id="abnormalBar" style="display:none;gap:6px;padding:6px 16px;background:#fff;border-bottom:1px solid #e2e8f0;flex-wrap:wrap"><button class="abn-filter on" data-abn="all" onclick="setAbnormalFilter('all')">全部</button><button class="abn-filter" data-abn="pending" onclick="setAbnormalFilter('pending')">⚠ 待核对</button><button class="abn-filter" data-abn="time" onclick="setAbnormalFilter('time')">⏱ 时间异常</button><button class="abn-filter" data-abn="worker" onclick="setAbnormalFilter('worker')">👥 人数异常</button><button class="abn-filter" data-abn="rate" onclick="setAbnormalFilter('rate')">⚡ 效率异常</button><button class="abn-filter" data-abn="normal" onclick="setAbnormalFilter('normal')">正常</button></div>
 				<div style="display:flex;gap:6px;padding:6px 16px;background:#fff;border-bottom:1px solid #e2e8f0"><input id="searchBox" type="text" placeholder="🔍 搜索SKU、品名、单号..." oninput="doSearch()" style="width:260px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;outline:none"><button class="del-btn" onclick="document.getElementById('searchBox').value='';doSearch()" style="padding:4px 10px;font-size:11px">✕ 清除</button></div>
 				<div class="del-bar"><label><input type="checkbox" id="selectAll" onchange="toggleAll()"> 全选</label><button class="del-btn" onclick="deleteSelected()">🗑 删除选中</button><button class="del-btn" style="background:#3182ce" onclick="document.getElementById('fuKanban').click()">📤 上传表格</button><span style="display:flex;align-items:center;gap:4px;font-size:12px;color:#4a5568">👥<input id="peopleInput" type="number" min="1" placeholder="上班人数" onchange="savePeople()" style="width:52px;padding:2px 4px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;text-align:center"><span id="peopleLabel" style="font-size:11px;color:#999"></span></span><input type="file" id="fuKanban" accept=".xlsx" style="display:none" onchange="uploadJobsDirect(this)"><span id="selCount" style="color:#999;margin-left:auto">0项</span></div>
 	
@@ -1779,12 +1779,12 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	    var show=curFilter==='history'||curFilter==='all';
 	    bar.style.display=show?'flex':'none';
 	    if(!show)return;
-	    var counts={'all':historyItems.length,'pending':0,'time':0,'worker':0,'rate':0,'pause':0,'normal':0};
+	    var counts={'all':historyItems.length,'pending':0,'time':0,'worker':0,'rate':0,'normal':0};
 	    historyItems.forEach(function(i){
 	        var types=i.abnormal_types||[];
 	        if(types.length===0)counts.normal++;
 	        else if(i.abnormal_status!=='confirmed'&&i.abnormal_status!=='ignored')counts.pending++;
-	        ['time','worker','rate','pause'].forEach(function(t){if(types.indexOf(t)>=0)counts[t]++;});
+	        ['time','worker','rate'].forEach(function(t){if(types.indexOf(t)>=0)counts[t]++;});
 	    });
 	    bar.querySelectorAll('.abn-filter').forEach(function(b){
 	        var key=b.getAttribute('data-abn');
@@ -3588,8 +3588,6 @@ def classify_job_anomaly(qty, worker, started, completed, done_qty, paused_secon
                     cats.append({'type':'worker', 'label':'人数异常', 'reason':'人数可能填写错误'})
         except:
             cats.append({'type':'time', 'label':'时间异常', 'reason':'时间格式无法识别'})
-    if (paused_seconds or 0) > 0:
-        cats.append({'type':'pause', 'label':'暂停未扣', 'reason':'存在暂停时间'})
     if done_qty is None or done_qty <= 0:
         cats.append({'type':'time', 'label':'时间异常', 'reason':'完成数量为空'})
     return cats
