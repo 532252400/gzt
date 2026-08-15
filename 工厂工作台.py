@@ -16,6 +16,8 @@ def init_db():
     except: pass
     try: c.execute('ALTER TABLE job_items ADD COLUMN job_number TEXT DEFAULT \'\'')
     except: pass
+    try: c.execute('ALTER TABLE job_items ADD COLUMN abnormal_status TEXT DEFAULT \'\'')
+    except: pass
     c.execute('''CREATE TABLE IF NOT EXISTS efficiency (id INTEGER PRIMARY KEY AUTOINCREMENT, sku TEXT UNIQUE, rate REAL, note TEXT, created_at TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS box_batches (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, created_at TEXT, total_boxes INTEGER DEFAULT 0, regions TEXT, status TEXT DEFAULT \'active\')''')
     c.execute('''CREATE TABLE IF NOT EXISTS box_items (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, fba TEXT, box_no TEXT, code TEXT, region TEXT, status TEXT DEFAULT \'pending\', scanned_at TEXT)''')
@@ -477,7 +479,7 @@ def box_check_code(bid, code, worker, region):
 # ====== 端口 ======
 # 使服务器能重用TIME_WAIT状态的端口
 # allow_reuse_address removed - causes port stealing on Windows
-VERSION = 'v20260720'
+VERSION = 'v20260815'
 PORT = 8932
 for _ in range(20):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1662,6 +1664,10 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	.filter-bar{display:flex;gap:4px;padding:8px 16px;background:#fff;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
 	.filter-bar button{flex:1;padding:6px;border:1px solid #3182ce;border-radius:6px;background:#fff;color:#3182ce;font-size:11px;cursor:pointer;font-weight:500}
 	.filter-bar button.on{background:#e53e3e;border-color:#e53e3e;color:#fff}
+	.abn-filter{padding:5px 10px;border:1px solid #3182ce;border-radius:6px;background:#fff;color:#3182ce;font-size:11px;cursor:pointer;font-weight:500}
+	.abn-filter.on{background:#3182ce;border-color:#3182ce;color:#fff}
+	.abn-tag{display:inline-block;background:#e53e3e;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
+	.abn-btn{padding:2px 6px;border:1px solid #e2e8f0;border-radius:4px;background:#f7fafc;color:#4a5568;font-size:10px;cursor:pointer;margin-left:4px}
 	.collapse-col .col-body.collapsed{display:none}
 	.collapse-col .cnt.clickable{cursor:pointer;user-select:none;transition:background .2s}
 	.collapse-col .cnt.clickable:hover{background:#cbd5e0}
@@ -1682,11 +1688,12 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	.calc-res.ok{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;display:block}
 	.calc-res.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 		<div class="hd"><div class="hd-top">
-			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.2</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
-							<div class="people-bar"><span style="font-size:11px;color:#a0aec0">v1.2</span></div>
+			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.3</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
+							<div class="people-bar"><span style="font-size:11px;color:#a0aec0">v1.3</span></div>
 		</div></div>
 		<div class="stats"><div class="stat-item gray"><div class="num" id="sTotal">0</div><div class="lbl">全部</div></div><div class="stat-item blue"><div class="num" id="sPending">0</div><div class="lbl">待处理</div></div><div class="stat-item orange"><div class="num" id="sProcessing">0</div><div class="lbl">加工中</div></div><div class="stat-item green"><div class="num" id="sToday">0</div><div class="lbl">今日完成</div></div><div class="stat-item red"><div class="num" id="sPriority">0</div><div class="lbl">⭐优先</div></div></div>
 				<div class="filter-bar"><button id="bf_all" class="on" onclick="setFilter('all')">📋 全部</button><button id="bf_pending" onclick="setFilter('pending')">⏸ 待处理</button><button id="bf_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="bf_today" onclick="setFilter('today')">✅ 今日完成</button><button id="bf_history" onclick="setFilter('history')">📋 历史完成</button><button id="bf_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
+				<div id="abnormalBar" style="display:none;gap:6px;padding:6px 16px;background:#fff;border-bottom:1px solid #e2e8f0;flex-wrap:wrap"><button class="abn-filter on" data-abn="all" onclick="setAbnormalFilter('all')">全部</button><button class="abn-filter" data-abn="pending" onclick="setAbnormalFilter('pending')">⚠ 待核对</button><button class="abn-filter" data-abn="time" onclick="setAbnormalFilter('time')">⏱ 时间异常</button><button class="abn-filter" data-abn="worker" onclick="setAbnormalFilter('worker')">👥 人数异常</button><button class="abn-filter" data-abn="rate" onclick="setAbnormalFilter('rate')">⚡ 效率异常</button><button class="abn-filter" data-abn="pause" onclick="setAbnormalFilter('pause')">⏸ 暂停未扣</button><button class="abn-filter" data-abn="normal" onclick="setAbnormalFilter('normal')">正常</button></div>
 				<div style="display:flex;gap:6px;padding:6px 16px;background:#fff;border-bottom:1px solid #e2e8f0"><input id="searchBox" type="text" placeholder="🔍 搜索SKU、品名、单号..." oninput="doSearch()" style="width:260px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;outline:none"><button class="del-btn" onclick="document.getElementById('searchBox').value='';doSearch()" style="padding:4px 10px;font-size:11px">✕ 清除</button></div>
 				<div class="del-bar"><label><input type="checkbox" id="selectAll" onchange="toggleAll()"> 全选</label><button class="del-btn" onclick="deleteSelected()">🗑 删除选中</button><button class="del-btn" style="background:#3182ce" onclick="document.getElementById('fuKanban').click()">📤 上传表格</button><span style="display:flex;align-items:center;gap:4px;font-size:12px;color:#4a5568">👥<input id="peopleInput" type="number" min="1" placeholder="上班人数" onchange="savePeople()" style="width:52px;padding:2px 4px;border:1px solid #e2e8f0;border-radius:4px;font-size:12px;text-align:center"><span id="peopleLabel" style="font-size:11px;color:#999"></span></span><input type="file" id="fuKanban" accept=".xlsx" style="display:none" onchange="uploadJobsDirect(this)"><span id="selCount" style="color:#999;margin-left:auto">0项</span></div>
 	
@@ -1713,6 +1720,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 		</div></div>
 	<div class="ov" id="etaQueryModal"><div class="bx" style="width:420px"><h3>🔍 产能查询</h3>
 	<div class="calc-row"><input id="etaQuerySku" type="text" placeholder="输入SKU搜索..." oninput="searchEtaQuery()" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;outline:none"></div>
+	<div style="display:flex;align-items:center;gap:6px;margin:6px 0 4px"><label style="font-size:12px;color:#718096;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="etaShowAbnormal" onchange="searchEtaQuery()" style="width:14px;height:14px"> 显示异常记录</label></div>
 	<div style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:4px 0">
 		<div id="etaQueryList" style="font-size:13px;color:#999;text-align:center;padding:20px">输入SKU搜索...</div>
 	</div>
@@ -1723,7 +1731,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	<button onclick="document.getElementById('etaQueryModal').style.display='none'" style="width:100%;padding:8px;background:#e2e8f0;border:none;border-radius:6px;font-size:12px;cursor:pointer;margin-top:8px">关闭</button>
 	</div></div>
 	<script>
-	var curItemId=0, curFilter='all';
+	var curItemId=0, curFilter='all', abnormalFilter='all', S_CONFIRMED='confirmed', S_IGNORED='ignored';
 	function todayStr(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0')}
 	function toggleCol(id){if(window.getSelection().toString().length>0)return;var el=document.getElementById(id);if(!el)return;el.classList.toggle('collapsed');var hdr=el.parentElement.querySelector('.cnt');if(hdr)hdr.textContent=hdr.textContent.replace('▶','▼').replace('▼','▶')}
 	function doSearch(){
@@ -1734,13 +1742,63 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	    });
 	    renderBoard(items);
 	}
+	function fmtMin(m){
+	    if(m==null||isNaN(m))return '';
+	    if(m<1)return Math.round(m*60)+'秒';
+	    var h=Math.floor(m/60),mi=Math.round(m%60);
+	    return (h>0?h+'小时':'')+(mi>0?mi+'分钟':'');
+	}
+	function filterHistoryItems(items){
+	    if(abnormalFilter==='all')return items;
+	    return items.filter(function(i){
+	        var types=i.abnormal_types||[];
+	        if(abnormalFilter==='normal')return types.length===0;
+	        if(abnormalFilter==='pending')return types.length>0 && i.abnormal_status!=='confirmed' && i.abnormal_status!=='ignored';
+	        return types.indexOf(abnormalFilter)>=0;
+	    });
+	}
+	function setAbnormalFilter(mode){
+	    abnormalFilter=mode;
+	    document.querySelectorAll('.abn-filter').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-abn')===mode)});
+	    loadBoard();
+	}
+	async function setAbnormalStatus(id,status){
+	    var fd=new FormData();
+	    fd.append('action','set_abnormal_status');
+	    fd.append('batch_name',id);
+	    fd.append('abnormal_status',status);
+	    try{
+	        var r=await fetch('/run',{method:'POST',body:fd});
+	        var d=await r.json();
+	        if(d.status==='ok')loadBoard(); else alert('处理失败：'+(d.message||''));
+	    }catch(e){alert('请求失败：'+e.message);}
+	}
+	function updateAbnormalBar(historyItems){
+	    var bar=document.getElementById('abnormalBar');
+	    if(!bar)return;
+	    var show=curFilter==='history'||curFilter==='all';
+	    bar.style.display=show?'flex':'none';
+	    if(!show)return;
+	    var counts={'all':historyItems.length,'pending':0,'time':0,'worker':0,'rate':0,'pause':0,'normal':0};
+	    historyItems.forEach(function(i){
+	        var types=i.abnormal_types||[];
+	        if(types.length===0)counts.normal++;
+	        else if(i.abnormal_status!=='confirmed'&&i.abnormal_status!=='ignored')counts.pending++;
+	        ['time','worker','rate','pause'].forEach(function(t){if(types.indexOf(t)>=0)counts[t]++;});
+	    });
+	    bar.querySelectorAll('.abn-filter').forEach(function(b){
+	        var key=b.getAttribute('data-abn');
+	        var label=b.textContent.split(' ')[0];
+	        b.textContent=(label+' '+(counts[key]||0));
+	    });
+	}
 		function renderBoard(items){
 		    var todayItems=items.filter(function(i){return i.status==='completed' && i.completed && i.completed.substr(0,10)===todayStr()});
 		    var historyItems=items.filter(function(i){return i.status==='completed' && (!i.completed || i.completed.substr(0,10)!==todayStr)});
 		    if(curFilter==='all' || curFilter==='pending') renderCol('pendingList',items.filter(function(i){return i.status==='pending'}),'pending'); else document.getElementById('pendingList').innerHTML='';
 		    if(curFilter==='all' || curFilter==='processing') renderCol('processingList',items.filter(function(i){return i.status==='processing'}),'processing'); else document.getElementById('processingList').innerHTML='';
 		    if(curFilter==='all' || curFilter==='today') renderCol('todayList',todayItems,'completed'); else document.getElementById('todayList').innerHTML='';
-		    if(curFilter==='all' || curFilter==='history') renderCol('historyList',historyItems,'completed'); else document.getElementById('historyList').innerHTML='';
+		    if(curFilter==='all' || curFilter==='history') renderCol('historyList',filterHistoryItems(historyItems),'completed'); else document.getElementById('historyList').innerHTML='';
 		    document.getElementById('batchInfo').textContent='全部加工单 ('+items.length+'项)';
 		}
 async function loadBoard(){
@@ -1751,6 +1809,7 @@ async function loadBoard(){
     var processing=items.filter(function(i){return i.status==='processing'}).length;
     var todayItems=items.filter(function(i){return i.status==='completed' && i.completed && i.completed.substr(0,10)===todayStr()});
     var historyItems=items.filter(function(i){return i.status==='completed' && (!i.completed || i.completed.substr(0,10)!==todayStr)});
+    window.historyItems=historyItems;
     var priority=items.filter(function(i){return i.priority==1}).length;
     document.getElementById('sTotal').textContent=total;document.getElementById('sPending').textContent=pending;
     document.getElementById('sProcessing').textContent=processing;document.getElementById('sToday').textContent=todayItems.length;
@@ -1761,6 +1820,7 @@ async function loadBoard(){
     var el=document.getElementById('pendingPri');
     if(el){if(pendingPri>0){el.textContent='⭐'+pendingPri;el.style.display='inline'}else el.style.display='none'}
     document.getElementById('cntToday').textContent=todayItems.length+' ▶';document.getElementById('cntHistory').textContent=historyItems.length+' ▶';
+    updateAbnormalBar(historyItems);
     var kw=document.getElementById('searchBox').value.trim().toLowerCase();
     if(kw){items=items.filter(function(i){return (i.sku&&i.sku.toLowerCase().indexOf(kw)>=0)||(i.name&&i.name.toLowerCase().indexOf(kw)>=0)||(i.job_number&&i.job_number.toLowerCase().indexOf(kw)>=0);});}
     // 保存勾选状态
@@ -1823,7 +1883,24 @@ function renderCol(elId,items,st){
             h+='<span>✔ 已完成</span>';
             if(i.done_qty) h+='<span>完成: '+i.done_qty+'件</span>';
             if(i.completed) h+='<span>🕐 '+i.completed.substr(11,5)+'</span>';
+            if(i.duration_min!=null) h+='<span>⏱ 有效 '+fmtMin(i.duration_min)+'</span>';
+            if(i.paused_min>0) h+='<span>⏸ 暂停 '+fmtMin(i.paused_min)+'</span>';
+            if(i.efficiency!=null) h+='<span>⚡ '+i.efficiency+' 套/人/时</span>';
             h+='</div>';
+            if(i.abnormal_labels&&i.abnormal_labels.length){
+                if(i.abnormal_status==='ignored'){
+                    h+='<div style="font-size:10px;color:#a0aec0;margin:4px 0 2px">⊘ 已忽略，不计入效率</div>';
+                }else{
+                    h+='<div style="margin:4px 0 2px">';
+                    i.abnormal_labels.forEach(function(lb){h+='<span class="abn-tag">⚠ '+escHtml(lb)+'</span>';});
+                    h+='</div>';
+                    if(i.abnormal_status==='confirmed'){
+                        h+='<div style="font-size:10px;color:#38a169;margin-bottom:2px">已核对</div>';
+                    }else{
+                        h+='<div style="margin:2px 0 4px"><button class="abn-btn" onclick="setAbnormalStatus('+i.id+',S_CONFIRMED)">✔ 已核对</button><button class="abn-btn" onclick="setAbnormalStatus('+i.id+',S_IGNORED)">⊘ 忽略</button></div>';
+                    }
+                }
+            }
         }
         c.innerHTML=h;el.appendChild(c);
     });
@@ -2083,7 +2160,7 @@ async function delEta(sku){
 }
 function escHtml(s){if(!s)return '';return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 // 产能查询
-var etaQueryData=[];
+var etaQueryData=[], etaHiddenAbnormalCount=0;
 function showEtaQuery(){
     document.getElementById('etaQueryModal').style.display='flex';
     document.getElementById('etaQuerySku').value='';
@@ -2091,12 +2168,15 @@ function showEtaQuery(){
     document.getElementById('etaQueryDelBtn').style.display='none';
     document.getElementById('etaQueryCount').textContent='';
     etaQueryData=[];
+    etaHiddenAbnormalCount=0;
     document.getElementById('etaQuerySku').focus();
 }
 async function searchEtaQuery(){
     var kw=document.getElementById('etaQuerySku').value.trim().toLowerCase();
     var el=document.getElementById('etaQueryList');
-    if(!kw){el.innerHTML='<span style="color:#999">输入SKU搜索...</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
+    if(!kw){el.innerHTML='<span style="color:#999">输入SKU搜索...</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';etaHiddenAbnormalCount=0;return}
+    var showAbnormal=document.getElementById('etaShowAbnormal')&&document.getElementById('etaShowAbnormal').checked;
+    etaHiddenAbnormalCount=0;
     try{
         // 同时获取手动录入和加工完成数据
         var [manualRes, jobRes]=await Promise.all([
@@ -2110,11 +2190,18 @@ async function searchEtaQuery(){
         }
         // 加工完成（只读，不可删除）
         if(jobRes&&jobRes.length){
-            jobRes.forEach(function(it){allItems.push({type:'job',sku:it.sku,rate:it.rate,note:it.qty+'个/'+it.people+'人/'+it.hours+'时',created:it.completed});});
+            var hiddenAbnormal=0;
+            jobRes.forEach(function(it){
+                var types=it.abnormal_types||[];
+                var isAbnormal=types.indexOf('time')>=0||types.indexOf('worker')>=0||types.indexOf('rate')>=0;
+                if(isAbnormal&&!showAbnormal){hiddenAbnormal++;return;}
+                allItems.push({type:'job',sku:it.sku,rate:it.rate,note:it.qty+'个/'+it.people+'人/'+it.hours+'时',created:it.completed,abnormal_label:it.abnormal_label||'',abnormal_types:types});
+            });
+            etaHiddenAbnormalCount=hiddenAbnormal;
         }
         if(allItems.length===0){el.innerHTML='<span style="color:#999">暂无数据</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
         var filtered=allItems.filter(function(it){return it.sku.toLowerCase().indexOf(kw)>=0});
-        if(filtered.length===0){el.innerHTML='<span style="color:#999">未找到匹配的SKU</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
+        if(filtered.length===0){el.innerHTML='<span style="color:#999">未找到匹配的有效SKU'+(etaHiddenAbnormalCount>0?'（已隐藏 '+etaHiddenAbnormalCount+' 条异常）':'')+'</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
         etaQueryData=filtered;
         var html='';
         for(var i=0;i<filtered.length;i++){
@@ -2126,16 +2213,17 @@ async function searchEtaQuery(){
             }else{
                 html+='<span style="width:16px;height:16px;margin-top:3px;flex-shrink:0"></span>';
             }
-            html+='<div style="flex:1;font-size:13px;line-height:1.6"><b>'+escHtml(it.sku)+'</b> → '+it.rate+' 套/人/时';
+            html+='<div style="flex:1;font-size:13px;line-height:1.6"><b>'+escHtml(it.sku)+'</b> → '+(it.rate==null?'待核对':it.rate+' 套/人/时');
             if(it.note) html+='<br><span style="color:#888;font-size:11px">'+(isManual?'📝 ':'✔ ')+escHtml(it.note)+'</span>';
             html+='<br><span style="color:#aaa;font-size:11px">🕐 '+escHtml(it.created)+'</span>';
             if(!isManual) html+=' <span style="color:#38a169;font-size:10px">[加工完成]</span>';
+            if(it.abnormal_label) html+=' <span style="color:#e53e3e;font-size:10px">⚠ '+escHtml(it.abnormal_label)+'</span>';
                         html+='<button class="del-eta-btn" data-sku="'+escHtml(it.sku)+'" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px;flex-shrink:0" title="删除">✕</button>';
 html+='</div></div>';
         }
         el.innerHTML=html;
         document.getElementById('etaQueryDelBtn').style.display=filtered.some(function(it){return it.type==='manual'})?'inline-block':'none';
-        document.getElementById('etaQueryCount').textContent='共 '+filtered.length+' 条'+(filtered.some(function(it){return it.type==='manual'})?'（可勾选删除手动录入）':'');
+        document.getElementById('etaQueryCount').textContent='共 '+filtered.length+' 条'+(etaHiddenAbnormalCount>0?'（已隐藏 '+etaHiddenAbnormalCount+' 条异常）':'')+(filtered.some(function(it){return it.type==='manual'})?'（可勾选删除手动录入）':'');
     }catch(e){
         el.innerHTML='<span style="color:#e53e3e">加载失败：'+e.message+'</span>';
     }
@@ -2177,7 +2265,7 @@ async function delEtaQueryItem(sku){
 function renderEtaQueryResults(){
     var el=document.getElementById('etaQueryList');
     var filtered=etaQueryData;
-    if(filtered.length===0){el.innerHTML='<span style="color:#999">未找到匹配的SKU</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
+    if(filtered.length===0){el.innerHTML='<span style="color:#999">未找到匹配的有效SKU'+(etaHiddenAbnormalCount>0?'（已隐藏 '+etaHiddenAbnormalCount+' 条异常）':'')+'</span>';document.getElementById('etaQueryDelBtn').style.display='none';document.getElementById('etaQueryCount').textContent='';return}
     var html='';
     for(var i=0;i<filtered.length;i++){
         var it=filtered[i];
@@ -2188,16 +2276,17 @@ function renderEtaQueryResults(){
         }else{
             html+='<span style="width:16px;height:16px;margin-top:3px;flex-shrink:0"></span>';
         }
-        html+='<div style="flex:1;font-size:13px;line-height:1.6"><b>'+escHtml(it.sku)+'</b> → '+it.rate+' 套/人/时';
+        html+='<div style="flex:1;font-size:13px;line-height:1.6"><b>'+escHtml(it.sku)+'</b> → '+(it.rate==null?'待核对':it.rate+' 套/人/时');
         if(it.note) html+='<br><span style="color:#888;font-size:11px">'+(isManual?'📝 ':'✔ ')+escHtml(it.note)+'</span>';
         html+='<br><span style="color:#aaa;font-size:11px">🕐 '+escHtml(it.created)+'</span>';
         if(!isManual) html+=' <span style="color:#38a169;font-size:10px">[加工完成]</span>';
+        if(it.abnormal_label) html+=' <span style="color:#e53e3e;font-size:10px">⚠ '+escHtml(it.abnormal_label)+'</span>';
         html+='<button class="del-eta-btn" data-sku="'+escHtml(it.sku)+'" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:14px;padding:0 4px;flex-shrink:0" title="删除">✕</button>';
         html+='</div></div>';
     }
     el.innerHTML=html;
     document.getElementById('etaQueryDelBtn').style.display=filtered.some(function(it){return it.type==='manual'})?'inline-block':'none';
-    document.getElementById('etaQueryCount').textContent='共 '+filtered.length+' 条'+(filtered.some(function(it){return it.type==='manual'})?'（可勾选删除手动录入）':'');
+    document.getElementById('etaQueryCount').textContent='共 '+filtered.length+' 条'+(etaHiddenAbnormalCount>0?'（已隐藏 '+etaHiddenAbnormalCount+' 条异常）':'')+(filtered.some(function(it){return it.type==='manual'})?'（可勾选删除手动录入）':'');
 }
 // sync disabled
 document.addEventListener('visibilitychange', function() { if (!document.hidden) loadBoard(); });
@@ -2624,12 +2713,33 @@ class H(http.server.BaseHTTPRequestHandler):
             default_ppl = int(q.get('people',[0])[0]) or 0
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
             if bid and bid.isdigit():
-                c.execute('SELECT id,sku,product_name,qty,customer,notes,status,worker,started_at,completed_at,completed_qty,priority,job_number FROM job_items WHERE batch_id=? ORDER BY priority DESC, id', (int(bid),))
+                c.execute('SELECT id,sku,product_name,qty,customer,notes,status,worker,started_at,completed_at,completed_qty,priority,job_number,IFNULL(paused_seconds,0),IFNULL(abnormal_status,\'\') FROM job_items WHERE batch_id=? ORDER BY priority DESC, id', (int(bid),))
             else:
-                c.execute('SELECT id,sku,product_name,qty,customer,notes,status,worker,started_at,completed_at,completed_qty,priority,job_number FROM job_items ORDER BY priority DESC, id DESC')
+                c.execute('SELECT id,sku,product_name,qty,customer,notes,status,worker,started_at,completed_at,completed_qty,priority,job_number,IFNULL(paused_seconds,0),IFNULL(abnormal_status,\'\') FROM job_items ORDER BY priority DESC, id DESC')
             items = []
             for i in c.fetchall():
-                item = {'id':i[0],'sku':i[1],'name':i[2],'qty':i[3],'customer':i[4],'notes':i[5],'status':i[6],'worker':i[7] or '','started':i[8] or '','completed':i[9] or '','done_qty':i[10] or 0,'priority':i[11] if i[11] else 0,'job_number':i[12] or ''}
+                item = {'id':i[0],'sku':i[1],'name':i[2],'qty':i[3],'customer':i[4],'notes':i[5],'status':i[6],'worker':i[7] or '','started':i[8] or '','completed':i[9] or '','done_qty':i[10] or 0,'priority':i[11] if i[11] else 0,'job_number':i[12] or '','paused_seconds':i[13] or 0,'abnormal_status':i[14] or ''}
+                if item['status'] == 'completed':
+                    ab = job_abnormal_summary(item['qty'], item['worker'], item['started'], item['completed'], item['done_qty'], item['paused_seconds'])
+                    eff = calc_effective_minutes(item['started'], item['completed'], item['paused_seconds'])
+                    ppl = parse_worker_count(item['worker'])
+                    item['people'] = ppl
+                    item['duration_min'] = round(eff, 1) if eff is not None else None
+                    item['paused_min'] = round((item['paused_seconds'] or 0) / 60.0, 1)
+                    try:
+                        st = datetime.datetime.fromisoformat(item['started'])
+                        en = datetime.datetime.fromisoformat(item['completed'])
+                        item['raw_min'] = round((en - st).total_seconds() / 60.0, 1)
+                    except:
+                        item['raw_min'] = None
+                    if eff and ppl > 0 and item['done_qty']:
+                        item['efficiency'] = round(item['done_qty'] / (eff / 60.0) / ppl, 2)
+                    else:
+                        item['efficiency'] = None
+                    item['abnormal_types'] = ab['types']
+                    item['abnormal_labels'] = ab['labels']
+                    item['abnormal_reasons'] = ab['reasons']
+                    item['abnormal_label'] = ' | '.join(ab['labels'])
                 # 用实际人数或默认人数来估算预计用时
                 if item['worker']:
                     actual_worker = item['worker']
@@ -2720,18 +2830,16 @@ class H(http.server.BaseHTTPRequestHandler):
                 sku, rate, note, created = r
                 if kw and kw not in (sku or '').upper(): continue
                 out.append({'type':'manual','sku':sku,'rate':rate,'note':note or '','created':created or ''})
-            c.execute('SELECT id, sku, completed_qty, started_at, completed_at, worker FROM job_items WHERE status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC')
+            c.execute('SELECT id, sku, completed_qty, started_at, completed_at, worker, IFNULL(paused_seconds,0) FROM job_items WHERE status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC')
             for r in c.fetchall():
-                rid, sku, qty, started, completed, worker = r
+                rid, sku, qty, started, completed, worker, paused = r
                 if kw and kw not in (sku or '').upper(): continue
                 try:
-                    st = datetime.datetime.fromisoformat(started)
-                    en = datetime.datetime.fromisoformat(completed)
-                    mins = max((en-st).total_seconds()/60, 1)
-                    m = re.search(r'x(\d+)', worker or '')
-                    ppl = int(m.group(1)) if m else 1
-                    rate = round(qty / (mins/60) / ppl, 2)
-                    out.append({'type':'job','id':rid,'sku':sku,'rate':rate,'note':str(qty)+'个/'+str(ppl)+'人/'+str(round(mins/60,1))+'时','created':(completed or '')[:16]})
+                    mins = calc_effective_minutes(started, completed, paused)
+                    ppl = parse_worker_count(worker)
+                    rate = round(qty / (mins / 60.0) / ppl, 2) if mins and ppl > 0 else None
+                    ab = job_abnormal_summary(qty, worker, started, completed, qty, paused)
+                    out.append({'type':'job','id':rid,'sku':sku,'rate':rate,'note':str(qty)+'个/'+str(ppl)+'人/'+str(round((mins or 0)/60,1))+'时','created':(completed or '')[:16],'people':ppl,'hours':round((mins or 0)/60,1),'abnormal_types':ab['types'],'abnormal_label':' | '.join(ab['labels'])})
                 except: pass
             conn.close()
             return self._json(out)
@@ -2743,19 +2851,17 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._json([{'sku':r[0],'rate':r[1],'note':r[2] or '','created':r[3]} for r in rows])
         if p.startswith('/get_job_efficiency'):
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-            c.execute('SELECT sku, completed_qty, started_at, completed_at, worker FROM job_items WHERE status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC')
+            c.execute('SELECT sku, completed_qty, started_at, completed_at, worker, IFNULL(paused_seconds,0) FROM job_items WHERE status=\'completed\' AND completed_qty>0 AND started_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY completed_at DESC')
             rows = c.fetchall(); conn.close()
             results = []
             for r in rows:
-                sku, qty, started, completed, worker = r
+                sku, qty, started, completed, worker, paused = r
                 try:
-                    s = datetime.datetime.fromisoformat(started)
-                    e = datetime.datetime.fromisoformat(completed)
-                    mins = max((e-s).total_seconds()/60, 1)
-                    m = re.search(r'x(\d+)', worker or '')
-                    ppl = int(m.group(1)) if m else 1
-                    rate = round(qty / (mins/60) / ppl, 2)
-                    results.append({'sku':sku,'rate':rate,'qty':qty,'people':ppl,'hours':round(mins/60,1),'completed':completed[:16],'worker':worker or ''})
+                    mins = calc_effective_minutes(started, completed, paused)
+                    ppl = parse_worker_count(worker)
+                    rate = round(qty / (mins / 60.0) / ppl, 2) if mins and ppl > 0 else None
+                    ab = job_abnormal_summary(qty, worker, started, completed, qty, paused)
+                    results.append({'sku':sku,'rate':rate,'qty':qty,'people':ppl,'hours':round((mins or 0)/60,1),'completed':completed[:16],'worker':worker or '','abnormal_types':ab['types'],'abnormal_label':' | '.join(ab['labels'])})
                 except: pass
             return self._json(results)
         if p.startswith('/job_batches'):
@@ -2855,7 +2961,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # Debug logging
             print(f'[DEBUG] POST action=\"{action}\" fname=\"{fname}\" fdata_size={len(fdata) if fdata else 0} parts={len(parts)}', flush=True)
             # Non-upload actions don't need a file
-            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal'):
+            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal'):
                 pass  # handle below
             elif not fdata or not fname:
                 return self._json({'status':'error','message':'No file'})
@@ -2928,6 +3034,15 @@ class H(http.server.BaseHTTPRequestHandler):
                         return
                 self._json({'status':'error','message':'\u274c \u65e0\u6548\u7684ID\u5217\u8868'})
                 return
+            if action == 'set_abnormal_status':
+                iid = int(self.post_data.get('batch_name', 0))
+                st = self._get_post('abnormal_status', 'pending')
+                if st not in ('pending', 'confirmed', 'ignored'):
+                    st = 'pending'
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute('UPDATE job_items SET abnormal_status=? WHERE id=?', (st, iid))
+                conn.commit(); conn.close()
+                return self._json({'status':'ok'})
             if action == 'set_priority':
                 iid = int(self.post_data.get('batch_name', 0))
                 pri = int(self.post_data.get('priority', 0))
@@ -3433,26 +3548,102 @@ def calc_work_minutes(start_dt, end_dt):
         cur = datetime.datetime.combine(cur.date(), datetime.time(8, 30))
     return max(0, total)
 
+def parse_worker_count(worker):
+    m = re.search(r'x(\d+)', worker or '')
+    return int(m.group(1)) if m else 0
+
+def calc_effective_minutes(started, completed, paused_seconds):
+    try:
+        st = datetime.datetime.fromisoformat(started)
+        en = datetime.datetime.fromisoformat(completed)
+    except:
+        return None
+    work = calc_work_minutes(st, en)
+    return max(0.0, work - (paused_seconds or 0) / 60.0)
+
+def classify_job_anomaly(qty, worker, started, completed, done_qty, paused_seconds):
+    cats = []
+    if not started or not completed:
+        cats.append({'type':'time', 'label':'时间异常', 'reason':'缺少开始或完成时间'})
+    else:
+        try:
+            st = datetime.datetime.fromisoformat(started)
+            en = datetime.datetime.fromisoformat(completed)
+            raw = (en - st).total_seconds() / 60.0
+            if raw < 0:
+                cats.append({'type':'time', 'label':'时间异常', 'reason':'完成时间早于开始时间'})
+            elif raw < 1:
+                cats.append({'type':'time', 'label':'时间异常', 'reason':'完成时长过短'})
+            ppl = parse_worker_count(worker)
+            if ppl <= 0:
+                cats.append({'type':'worker', 'label':'人数异常', 'reason':'未识别到人数'})
+            else:
+                eff = calc_effective_minutes(started, completed, paused_seconds)
+                rate = round(qty / (eff / 60.0) / ppl, 2) if eff and eff > 0 else None
+                if rate is not None and rate > 200:
+                    cats.append({'type':'rate', 'label':'效率异常', 'reason':'效率过高'})
+                if rate is not None and rate < 2:
+                    cats.append({'type':'rate', 'label':'效率异常', 'reason':'效率过低'})
+                if ppl == 1 and qty >= 100 and ((rate or 0) > 100 or (eff is not None and eff < 60)):
+                    cats.append({'type':'worker', 'label':'人数异常', 'reason':'人数可能填写错误'})
+        except:
+            cats.append({'type':'time', 'label':'时间异常', 'reason':'时间格式无法识别'})
+    if (paused_seconds or 0) > 0:
+        cats.append({'type':'pause', 'label':'暂停未扣', 'reason':'存在暂停时间'})
+    if done_qty is None or done_qty <= 0:
+        cats.append({'type':'time', 'label':'时间异常', 'reason':'完成数量为空'})
+    return cats
+
+def job_abnormal_summary(qty, worker, started, completed, done_qty, paused_seconds):
+    cats = classify_job_anomaly(qty, worker, started, completed, done_qty, paused_seconds)
+    types = []
+    labels = []
+    reasons = []
+    for c in cats:
+        if c['type'] not in types:
+            types.append(c['type'])
+        if c['label'] not in labels:
+            labels.append(c['label'])
+        reasons.append(c['reason'])
+    return {'types': types, 'labels': labels, 'reasons': reasons}
+
 def get_workshop_efficiency(sku):
     try:
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         sku_upper = sku.upper()
-        c.execute('SELECT completed_qty, completed_at, started_at FROM job_items WHERE sku=? AND status=\'completed\' AND completed_qty>0', (sku_upper,))
+        c.execute('SELECT completed_qty, completed_at, started_at, worker, IFNULL(paused_seconds,0) FROM job_items WHERE sku=? AND status=\'completed\' AND completed_qty>0', (sku_upper,))
         rows = c.fetchall()
         conn.close()
         if not rows: return None
-        total_qty = sum(r[0] for r in rows)
+        total_qty = 0
         total_minutes = 0
+        rates = []
+        excluded = 0
         for r in rows:
             try:
-                s = datetime.datetime.fromisoformat(r[2])
-                e = datetime.datetime.fromisoformat(r[1])
-                total_minutes += calc_work_minutes(s, e)
+                qty, completed, started, worker, paused = r
+                ab = job_abnormal_summary(qty, worker, started, completed, qty, paused)
+                if any(t in ab['types'] for t in ('time','worker','rate')):
+                    excluded += 1
+                    continue
+                eff = calc_effective_minutes(started, completed, paused)
+                ppl = parse_worker_count(worker)
+                if not eff or ppl <= 0:
+                    excluded += 1
+                    continue
+                total_qty += qty
+                total_minutes += eff
+                rates.append(qty / (eff / 60.0) / ppl)
             except: pass
         if total_minutes <= 0: return None
-        total_hours = total_minutes / 60
-        rate = total_qty / total_hours if total_hours > 0 else None
-        return {'qty': total_qty, 'hours': round(total_hours, 2), 'rate': round(rate, 2) if rate else None, 'count': len(rows)}
+        if rates:
+            rates.sort()
+            if len(rates) >= 3:
+                rates = rates[1:-1]
+            rate = sum(rates) / len(rates)
+        else:
+            rate = None
+        return {'qty': total_qty, 'hours': round(total_minutes / 60.0, 2), 'rate': round(rate * 60.0, 2) if rate else None, 'count': len(rows) - excluded, 'excluded': excluded}
     except: return None
 
 def calc_est_completion(sku, current_worker):
@@ -3479,12 +3670,18 @@ def calc_est_completion(sku, current_worker):
             # 有历史记录：取平均人均每分钟效率
             rates = []
             for prev_qty, prev_end, prev_start, prev_worker, paused_sec in rows:
+                ab = job_abnormal_summary(prev_qty, prev_worker, prev_start, prev_end, prev_qty, paused_sec)
+                if any(t in ab['types'] for t in ('time','worker','rate')):
+                    continue
                 s = datetime.datetime.fromisoformat(prev_start)
                 e = datetime.datetime.fromisoformat(prev_end)
                 dur_min = max(calc_work_minutes(s, e) - (paused_sec or 0) / 60, 1)  # 扣除暂停时间
-                m = re.search(r'x(\d+)', prev_worker or '')
-                prev_ppl = int(m.group(1)) if m else 1
+                prev_ppl = parse_worker_count(prev_worker)
+                if prev_ppl <= 0:
+                    continue
                 rates.append(prev_qty / dur_min / prev_ppl)
+            if not rates:
+                return None
             rates.sort()
             if len(rates) >= 3:
                 rates = rates[1:-1]  # 去掉最高最低
