@@ -749,7 +749,7 @@ h1{font-size:18px;text-align:center;padding:8px 0 2px}
 <div class="hdr"><h1>📦 箱码扫码核对</h1><button class="rf" onclick="loadInfo()">🔄 刷新</button></div>
 <p class="st" id="batchInfo">加载中...</p>
 <div class="bar"><select id="batchSel"><option value="">-- 选择批次 --</option></select><select id="regionSel" style="display:none"><option value="">-- 选择区域 --</option></select></div><div class="region-board" id="regionBoardMobile"></div>
-<div class="enter"><input class="i" id="codeInput" inputmode="none" autocomplete="off" maxlength="20" placeholder="输入/扫描箱码" oninput="autoCheck(this)" onkeydown="if(event.key==='Enter')checkBox()"><button onclick="checkBox()">查询</button></div>
+<div class="enter"><input class="i" id="codeInput" placeholder="输入/扫描箱码" onkeydown="if(event.key==='Enter'&&!event.repeat)checkBox()"><button onclick="checkBox()">查询</button></div>
 <div class="tiles" id="tiles"></div>
 <div class="reset-row"><button class="reset-btn" id="resetBtn" onclick="resetRegion()">♻️ 重扫本区域</button></div>
 <div class="r" id="result"></div>
@@ -767,10 +767,6 @@ function playError(){ensureAudio();if(!audioCtx)return;tone(220,0,0.15,'square',
 document.addEventListener('touchstart',function(){ensureAudio();},{passive:true});
 var _ci=document.getElementById('codeInput');if(_ci){_ci.addEventListener('focus',ensureAudio);_ci.addEventListener('touchstart',ensureAudio);}
 function focusCode(){var el=document.getElementById('codeInput');if(el)el.focus()}
-function autoCheck(el){
-  var v=(el.value||'').trim().toUpperCase();
-  if(v.length===19){el.value=v;checkBox()}
-}
 function currentLock(){var rg=currentRegion();return locks[rg]||null}
 function refreshLockUI(){
   var lock=currentLock();var wrong=!!wrongLock.code;
@@ -883,6 +879,7 @@ async function checkBox(){
   if(!rg){alert('请先选择区域');return}
   if(!!wrongLock.code){refreshLockUI();return}
   if(currentLock()){refreshLockUI();return}
+  document.getElementById('codeInput').value='';
   var r=document.getElementById('result');
   r.style.display='block';r.className='r';r.innerHTML='<div class="ico">⏳</div><div class="s">查询中...</div>';
   var d;
