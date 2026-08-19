@@ -473,7 +473,7 @@ def box_check_code(bid, code, worker, region):
                 message = '正确'
     c.execute('SELECT DISTINCT code FROM box_scans WHERE batch_id=? AND result=\'duplicate\'', (bid,))
     dup_codes = {r[0] for r in c.fetchall()}
-    c.execute('SELECT code, worker, result, region, scanned_at FROM box_scans WHERE batch_id=? ORDER BY id DESC LIMIT 20', (bid,))
+    c.execute('SELECT code, worker, result, region, scanned_at FROM box_scans WHERE batch_id=? AND region=? ORDER BY id DESC LIMIT 20', (bid, region))
     history = [{'code':h[0],'worker':h[1] or '', 'result':h[2], 'region':h[3] or '', 'time':h[4] or '', 'dup':h[0] in dup_codes} for h in c.fetchall()]
     stats = get_box_stats(bid, region)
     conn.close()
@@ -815,6 +815,7 @@ function selectRegion(rg){
   renderRegionStats();
   renderRegionBoardMobile();
   refreshLockUI();
+  refreshRegionHistory();
   focusCode();
 }
 function renderRegionBoardMobile(){
@@ -843,6 +844,21 @@ function renderRegionBoardMobile(){
     board.appendChild(row);
   });
 }
+function renderScanList(history){
+  var sl=document.getElementById('scanList');
+  if(history&&history.length){
+        sl.innerHTML='<b>⏱ 最近扫码</b>'+history.map(function(h){var t=(h.time||'').substr(11,8);var isDup=h.dup||h.result==='duplicate';var m=h.result==='correct'?(isDup?'⚠️':'✅'):(h.result==='duplicate'?'⚠️':'❌');return '<div class="'+(isDup?'dup-row':'')+'">'+t+' '+esc(h.code)+' '+m+'</div>'}).join('');
+  }else{sl.innerHTML=''}
+}
+async function refreshRegionHistory(){
+  if(!currentBatch){return}
+  var rg=currentRegion();
+  if(!rg){document.getElementById('scanList').innerHTML='';return}
+  try{
+    var d=await fetchJSON('/box_region_history?batch='+currentBatch.id+'&region='+encodeURIComponent(rg));
+    renderScanList(d.history||[]);
+  }catch(e){document.getElementById('scanList').innerHTML=''}
+}
 function fetchJSON(url){
   return new Promise(function(resolve,reject){
     var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
@@ -869,6 +885,7 @@ async function loadInfo(bid){
     renderRegionStats();
   renderRegionBoardMobile();
     refreshLockUI();
+  refreshRegionHistory();
     focusCode();
   }catch(e){
     document.getElementById('batchInfo').textContent='加载失败，请检查网络后点刷新';
@@ -928,10 +945,7 @@ async function checkBox(){
     renderRegionStats();
     renderRegionBoardMobile();
   }
-  var sl=document.getElementById('scanList');
-  if(d.history&&d.history.length){
-    sl.innerHTML='<b>⏱ 最近扫码</b>'+d.history.map(function(h){var t=(h.time||'').substr(11,8);var isDup=h.dup||h.result==='duplicate';var m=h.result==='correct'?(isDup?'⚠️':'✅'):(h.result==='duplicate'?'⚠️':'❌');return '<div class="'+(isDup?'dup-row':'')+'">'+t+' '+esc(h.code)+' '+m+'</div>'}).join('');
-  }else{sl.innerHTML=''}
+  renderScanList(d.history);
   document.getElementById('codeInput').value='';
   document.getElementById('codeInput').focus();
 }
@@ -2625,6 +2639,20 @@ class H(http.server.BaseHTTPRequestHandler):
             regions = batch['regions']
             region_stats = {rg: get_box_stats(batch['id'], rg) for rg in regions}
             return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(batch['id']), 'locks':get_box_locks(batch['id'])})
+        
+        if p.startswith('/box_region_history'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            bid = int(q.get('batch',['0'])[0]) if q.get('batch',['0'])[0].isdigit() else 0
+            region = q.get('region',[''])[0].strip()
+            if not bid or not region:
+                return self._json({'history':[]})
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute('SELECT DISTINCT code FROM box_scans WHERE batch_id=? AND result=\'duplicate\'', (bid,))
+            dup_codes = {r[0] for r in c.fetchall()}
+            c.execute('SELECT code, worker, result, region, scanned_at FROM box_scans WHERE batch_id=? AND region=? ORDER BY id DESC LIMIT 20', (bid, region))
+            history = [{'code':h[0],'worker':h[1] or '', 'result':h[2], 'region':h[3] or '', 'time':h[4] or '', 'dup':h[0] in dup_codes} for h in c.fetchall()]
+            conn.close()
+            return self._json({'history':history})
         
         if p.startswith('/box_lock_status'):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
