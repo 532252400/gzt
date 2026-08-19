@@ -471,8 +471,10 @@ def box_check_code(bid, code, worker, region):
                 conn.commit()
                 result = 'correct'
                 message = '正确'
+    c.execute('SELECT DISTINCT code FROM box_scans WHERE batch_id=? AND result=\'duplicate\'', (bid,))
+    dup_codes = {r[0] for r in c.fetchall()}
     c.execute('SELECT code, worker, result, region, scanned_at FROM box_scans WHERE batch_id=? ORDER BY id DESC LIMIT 20', (bid,))
-    history = [{'code':h[0],'worker':h[1] or '', 'result':h[2], 'region':h[3] or '', 'time':h[4] or ''} for h in c.fetchall()]
+    history = [{'code':h[0],'worker':h[1] or '', 'result':h[2], 'region':h[3] or '', 'time':h[4] or '', 'dup':h[0] in dup_codes} for h in c.fetchall()]
     stats = get_box_stats(bid, region)
     conn.close()
     if lock_reason:
@@ -748,6 +750,7 @@ h1{font-size:18px;text-align:center;padding:8px 0 2px}
 .code-input.locked{background:#fce8e6;border-color:#ea4335}
 .list{font-size:12px;background:#fff;border-radius:6px;padding:8px;max-height:180px;overflow-y:auto}
 .list div{padding:3px 0;border-bottom:1px solid #eee}.list div:last-child{border:none}
+.list div.dup-row{background:#fff7e0;color:#b26a00;padding-left:4px;border-radius:3px}
 .cr{font-size:11px;color:#999;text-align:center;margin-top:12px}
 </style></head><body>
 <div class="hdr"><h1>📦 箱码扫码核对</h1><button class="rf" onclick="loadInfo()">🔄 刷新</button></div>
@@ -927,7 +930,7 @@ async function checkBox(){
   }
   var sl=document.getElementById('scanList');
   if(d.history&&d.history.length){
-    sl.innerHTML='<b>⏱ 最近扫码</b>'+d.history.map(function(h){var t=(h.time||'').substr(11,8);var m=h.result==='correct'?'✅':(h.result==='duplicate'?'⚠️':'❌');return '<div>'+t+' '+esc(h.code)+' '+m+'</div>'}).join('');
+    sl.innerHTML='<b>⏱ 最近扫码</b>'+d.history.map(function(h){var t=(h.time||'').substr(11,8);var isDup=h.dup||h.result==='duplicate';var m=h.result==='correct'?(isDup?'⚠️':'✅'):(h.result==='duplicate'?'⚠️':'❌');return '<div class="'+(isDup?'dup-row':'')+'">'+t+' '+esc(h.code)+' '+m+'</div>'}).join('');
   }else{sl.innerHTML=''}
   document.getElementById('codeInput').value='';
   document.getElementById('codeInput').focus();
@@ -1187,7 +1190,7 @@ async function loadItems(){
   }else{
     h='<tr><th>箱码</th><th>FBA号</th><th>箱号</th><th>区域</th><th>状态</th><th>扫码时间</th></tr>';
     if(!items.length)h+='<tr><td colspan="6" class="na">没有匹配明细</td></tr>';
-    items.forEach(function(i){var st=i.status==='scanned'?'<span class="tag ok">已扫</span>':'<span class="tag pending">待扫</span>';h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.fba)+'</td><td>'+esc(i.box_no)+'</td><td>'+esc(i.region||'-')+'</td><td>'+st+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
+    items.forEach(function(i){var st=i.status==='scanned'?'<span class="tag ok">已扫</span>':'<span class="tag pending">待扫</span>';var dupMark=i.has_dup?'⚠️ ':'';h+='<tr class="'+(i.has_dup?'dup-row':'')+'"><td style="font-family:monospace">'+dupMark+esc(i.code)+'</td><td>'+esc(i.fba)+'</td><td>'+esc(i.box_no)+'</td><td>'+esc(i.region||'-')+'</td><td>'+st+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
   }
   document.getElementById('items').innerHTML=h;
 }
@@ -2699,9 +2702,9 @@ class H(http.server.BaseHTTPRequestHandler):
                 where += ' AND code LIKE ?'; args.append('%'+keyword+'%')
             c.execute('SELECT COUNT(*) FROM box_items WHERE '+where, args)
             item_count = c.fetchone()[0]
-            sql = 'SELECT code, fba, box_no, region, status, scanned_at FROM box_items WHERE '+where+' ORDER BY id LIMIT 500'
+            sql = 'SELECT box_items.code, box_items.fba, box_items.box_no, box_items.region, box_items.status, box_items.scanned_at, EXISTS(SELECT 1 FROM box_scans sc WHERE sc.batch_id=box_items.batch_id AND sc.code=box_items.code AND sc.result=\'duplicate\') FROM box_items WHERE '+where+' ORDER BY box_items.id LIMIT 500'
             c.execute(sql, args)
-            items = [{'code':i[0],'fba':i[1],'box_no':i[2],'region':i[3] or '', 'status':i[4], 'scanned_at':i[5] or ''} for i in c.fetchall()]
+            items = [{'code':i[0],'fba':i[1],'box_no':i[2],'region':i[3] or '', 'status':i[4], 'scanned_at':i[5] or '', 'has_dup':bool(i[6])} for i in c.fetchall()]
             conn.close()
             return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(bid, region), 'item_count':item_count, 'shown_count':len(items), 'items':items, 'view':'', 'scan_first':scan_first, 'scan_last':scan_last, 'duration_text':duration_text, 'locks':get_box_locks(bid)})
         
