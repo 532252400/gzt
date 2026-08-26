@@ -1133,7 +1133,7 @@ function renderRegionBoard(d){
     if(lock){var unlockBtn=document.createElement('button');unlockBtn.type='button';unlockBtn.className='lockbadge unlockbtn';var reason=lock.reason==='duplicate'?'重复扫码':(lock.reason==='not_found'?'清单无此码':lock.reason);unlockBtn.textContent='🔓 解锁 '+reason;unlockBtn.onclick=function(){unlockRegion(rg)};rh.appendChild(unlockBtn);}
     card.appendChild(rh);
     var metrics=document.createElement('div');metrics.className='metrics';
-    [[st.expected,'总箱数','',''],[st.scanned,'已扫正确','ok',null],[st.remaining,'剩余','',null],[st.wrong,'放错区域','','wrong'],[st.duplicate,'重复扫码','','duplicate'],[st.not_found,'清单无此码','','not_found']].forEach(function(m){
+    [[st.expected,'总箱数','',''],[st.scanned,'已扫正确','ok','scanned'],[st.remaining,'剩余','','pending'],[st.wrong,'放错区域','','wrong'],[st.duplicate,'重复扫码','','duplicate'],[st.not_found,'清单无此码','','not_found']].forEach(function(m){
       var value=m[0], label=m[1], cls=m[2], mode=m[3];
       var alertMetric=(mode==='wrong'||mode==='duplicate'||mode==='not_found');
       var box=document.createElement('div');
@@ -1222,7 +1222,7 @@ async function loadItems(){
     items.forEach(function(i){h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.region||'-')+'</td><td>'+esc(i.result_label||'')+'</td><td>'+esc(i.note||'')+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
   }else{
     h='<tr><th>箱码</th><th>FBA号</th><th>箱号</th><th>区域</th><th>状态</th><th>扫码时间</th></tr>';
-    if(!items.length)h+='<tr><td colspan="6" class="na">没有匹配明细</td></tr>';
+    if(!items.length)h+='<tr><td colspan="6" class="na">'+(d.view==='scanned'?'没有已扫正确明细':(d.view==='pending'?'没有剩余明细':'没有匹配明细'))+'</td></tr>';
     items.forEach(function(i){var st=i.status==='scanned'?'<span class="tag ok">已扫</span>':'<span class="tag pending">待扫</span>';var dupMark=i.has_dup?'⚠️ ':'';h+='<tr class="'+(i.has_dup?'dup-row':'')+'"><td style="font-family:monospace">'+dupMark+esc(i.code)+'</td><td>'+esc(i.fba)+'</td><td>'+esc(i.box_no)+'</td><td>'+esc(i.region||'-')+'</td><td>'+st+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
   }
   document.getElementById('items').innerHTML=h;
@@ -2747,13 +2747,15 @@ class H(http.server.BaseHTTPRequestHandler):
                 where += ' AND region=?'; args.append(region)
             if keyword:
                 where += ' AND code LIKE ?'; args.append('%'+keyword+'%')
+            if view in ('scanned', 'pending'):
+                where += ' AND status=?'; args.append(view)
             c.execute('SELECT COUNT(*) FROM box_items WHERE '+where, args)
             item_count = c.fetchone()[0]
             sql = 'SELECT box_items.code, box_items.fba, box_items.box_no, box_items.region, box_items.status, box_items.scanned_at, EXISTS(SELECT 1 FROM box_scans sc WHERE sc.batch_id=box_items.batch_id AND sc.code=box_items.code AND sc.result=\'duplicate\') FROM box_items WHERE '+where+' ORDER BY box_items.id LIMIT 500'
             c.execute(sql, args)
             items = [{'code':i[0],'fba':i[1],'box_no':i[2],'region':i[3] or '', 'status':i[4], 'scanned_at':i[5] or '', 'has_dup':bool(i[6])} for i in c.fetchall()]
             conn.close()
-            return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(bid, region), 'item_count':item_count, 'shown_count':len(items), 'items':items, 'view':'', 'scan_first':scan_first, 'scan_last':scan_last, 'duration_text':duration_text, 'locks':get_box_locks(bid)})
+            return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(bid, region), 'item_count':item_count, 'shown_count':len(items), 'items':items, 'view': (view if view in ('scanned','pending','all') else ''), 'scan_first':scan_first, 'scan_last':scan_last, 'duration_text':duration_text, 'locks':get_box_locks(bid)})
         
         if p.startswith('/box_check'):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
