@@ -756,7 +756,7 @@ h1{font-size:18px;text-align:center;padding:8px 0 2px}
 <div class="hdr"><h1>📦 箱码扫码核对</h1><button class="rf" onclick="loadInfo()">🔄 刷新</button></div>
 <p class="st" id="batchInfo">加载中...</p>
 <div class="bar"><select id="batchSel"><option value="">-- 选择批次 --</option></select><select id="regionSel" style="display:none"><option value="">-- 选择区域 --</option></select></div><div class="region-board" id="regionBoardMobile"></div>
-<div class="enter"><input class="i" id="codeInput" placeholder="输入/扫描箱码" onkeydown="if(event.key==='Enter'&&!event.repeat)checkBox()"><button onclick="checkBox()">查询</button></div>
+<div class="enter"><input class="i" id="codeInput" inputmode="none" placeholder="输入/扫描箱码" onkeydown="if(event.key==='Enter'&&!event.repeat)checkBox()"><button onclick="checkBox()">查询</button></div>
 <div class="tiles" id="tiles"></div>
 <div class="reset-row"><button class="reset-btn" id="resetBtn" onclick="resetRegion()">♻️ 重扫本区域</button></div>
 <div class="r" id="result"></div>
@@ -773,7 +773,26 @@ function playOk(){ensureAudio();if(!audioCtx)return;tone(880,0,0.12,'sine',0.28)
 function playError(){ensureAudio();if(!audioCtx)return;tone(220,0,0.15,'square',0.22);tone(165,0.18,0.22,'square',0.22);try{if(navigator.vibrate)navigator.vibrate(200);}catch(e){}}
 document.addEventListener('touchstart',function(){ensureAudio();},{passive:true});
 var _ci=document.getElementById('codeInput');if(_ci){_ci.addEventListener('focus',ensureAudio);_ci.addEventListener('touchstart',ensureAudio);}
-function focusCode(){var el=document.getElementById('codeInput');if(el)el.focus()}
+document.addEventListener('keydown',function(e){
+  if(e.repeat){return}
+  var input=document.getElementById('codeInput');
+  if(!input||document.activeElement===input){return}
+  if(e.key==='Enter'){
+    e.preventDefault();
+    if(input.value.trim()){checkBox()}
+    return;
+  }
+  if(e.key==='Backspace'){
+    e.preventDefault();
+    input.value=input.value.slice(0,-1);
+    return;
+  }
+  if(e.key&&e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    e.preventDefault();
+    input.value+=e.key;
+  }
+});
+function focusCode(){var el=document.getElementById('codeInput');if(el)el.blur()}
 function currentLock(){var rg=currentRegion();return locks[rg]||null}
 function refreshLockUI(){
   var lock=currentLock();var wrong=!!wrongLock.code;
@@ -912,7 +931,7 @@ async function checkBox(){
   }catch(e){
     r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">网络连接失败</div><div class="d">请确认手机和电脑在同一 WiFi，然后点刷新</div>';
     playError();
-    document.getElementById('codeInput').focus();
+    document.getElementById('codeInput').blur();
     return;
   }
   if(d.result==='correct'){
@@ -947,12 +966,12 @@ async function checkBox(){
   }
   renderScanList(d.history);
   document.getElementById('codeInput').value='';
-  document.getElementById('codeInput').focus();
+  document.getElementById('codeInput').blur();
 }
 function dismissDuplicate(){
   document.getElementById('result').style.display='none';
   document.getElementById('codeInput').value='';
-  document.getElementById('codeInput').focus();
+  document.getElementById('codeInput').blur();
 }
 async function returnWrong(){
   if(!wrongLock.code||!currentBatch){return}
