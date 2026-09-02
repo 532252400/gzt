@@ -24,6 +24,8 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS box_scans (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, code TEXT, worker TEXT, result TEXT, region TEXT, note TEXT, scanned_at TEXT)''')
     try: c.execute('ALTER TABLE box_scans ADD COLUMN resolved INTEGER DEFAULT 0')
     except: pass
+    try: c.execute('ALTER TABLE box_scans ADD COLUMN resolved_at TEXT')
+    except: pass
     c.execute('''CREATE TABLE IF NOT EXISTS box_locks (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, region TEXT, reason TEXT, created_at TEXT, UNIQUE(batch_id, region))''')
     c.execute('''CREATE TABLE IF NOT EXISTS box_events (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, region TEXT, event_type TEXT, code TEXT, worker TEXT, note TEXT, created_at TEXT)''')
     try: c.execute('CREATE INDEX IF NOT EXISTS idx_box_items_batch ON box_items(batch_id)')
@@ -438,6 +440,7 @@ def box_check_code(bid, code, worker, region):
     expected_region = ''
     lock_reason = ''
     first_correct_at = ''
+    dup_record = None
     if not item:
         c.execute('INSERT INTO box_scans (batch_id, code, worker, result, region, note, scanned_at) VALUES (?,?,?,?,?,?,?)', (bid, code, worker, 'not_found', region, '清单中没有此箱码', now))
         conn.commit()
@@ -458,6 +461,7 @@ def box_check_code(bid, code, worker, region):
             if already:
                 c.execute('INSERT INTO box_scans (batch_id, code, worker, result, region, note, scanned_at) VALUES (?,?,?,?,?,?,?)', (bid, code, worker, 'duplicate', region, '重复扫码', now))
                 conn.commit()
+                dup_record = c.lastrowid
                 result = 'duplicate'
                 message = '重复扫码，请勿重复'
                 c.execute('SELECT MIN(scanned_at) FROM box_scans WHERE batch_id=? AND code=? AND result=\'correct\'', (bid, code))
@@ -467,7 +471,7 @@ def box_check_code(bid, code, worker, region):
             else:
                 c.execute('UPDATE box_items SET status=\'scanned\', scanned_at=? WHERE id=?', (now, item[0]))
                 c.execute('INSERT INTO box_scans (batch_id, code, worker, result, region, note, scanned_at) VALUES (?,?,?,?,?,?,?)', (bid, code, worker, 'correct', region, '', now))
-                c.execute('UPDATE box_scans SET resolved=1 WHERE batch_id=? AND code=? AND result=\'wrong_region\' AND resolved=0', (bid, code))
+                c.execute("UPDATE box_scans SET resolved=1, resolved_at=? WHERE batch_id=? AND code=? AND result='wrong_region' AND resolved=0", (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), bid, code))
                 conn.commit()
                 result = 'correct'
                 message = '正确'
@@ -480,7 +484,7 @@ def box_check_code(bid, code, worker, region):
     if lock_reason:
         set_box_lock(bid, region, lock_reason, code, worker)
     locks = get_box_locks(bid)
-    return {'result':result,'message':message,'code':code,'expected_region':expected_region,'first_correct_at':first_correct_at,'scanned_at':now,'stats':stats,'history':history,'lock_reason':lock_reason,'locks':locks}
+    return {'result':result,'message':message,'code':code,'expected_region':expected_region,'first_correct_at':first_correct_at,'scanned_at':now,'duplicate_id':dup_record,'stats':stats,'history':history,'lock_reason':lock_reason,'locks':locks}
 
 # ====== 端口 ======
 # 使服务器能重用TIME_WAIT状态的端口
@@ -777,7 +781,7 @@ h1{font-size:18px;text-align:center;padding:8px 0 2px}
 <div class="items-panel" id="itemsPanel"><div class="items-head"><span id="itemsTitle">箱码列表</span><button class="items-close" onclick="closeItems()">关闭</button></div><div class="items-body" id="itemsBody">加载中...</div></div>
 <script>
 function esc(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-var batches=[], currentBatch=null, regionStats={}, locks={}, wrongLock={code:null};
+var batches=[], currentBatch=null, regionStats={}, locks={}, wrongLock={code:null}, lastDuplicate=null;
 var audioCtx=null;
 function ensureAudio(){try{if(!audioCtx){var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;audioCtx=new AC();}if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
 function tone(freq,start,dur,type,vol){if(!audioCtx)return;var o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type||'sine';o.frequency.value=freq;var t=audioCtx.currentTime+start;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.25,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(audioCtx.destination);o.start(t);o.stop(t+dur+0.05);}
@@ -848,6 +852,8 @@ async function openItems(view){
     renderMobileItems(d.items||[], view);
   }catch(e){document.getElementById('itemsBody').innerHTML='加载失败，请稍后重试'}
 }
+function intervalSec(a,b){if(!a||!b)return null;var t1=new Date(a.replace(' ','T')),t2=new Date(b.replace(' ','T'));if(isNaN(t1)||isNaN(t2))return null;var d=Math.floor((t2-t1)/1000);return d<0?-d:d;}
+function fmtInterval(a,b){var d=intervalSec(a,b);if(d===null)return '--';if(d<60)return d+'\u79d2';var m=Math.floor(d/60);return m+'\u5206'+(d%60)+'\u79d2';}
 function closeItems(){document.getElementById('itemsPanel').style.display='none'}
 function renderMobileItems(items, view){
   var body=document.getElementById('itemsBody');
@@ -855,7 +861,17 @@ function renderMobileItems(items, view){
   var html='';
   items.forEach(function(it){
     if(view==='abnormal'){
-      html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+esc(it.result_label||'')+(it.scanned_at?' · '+esc(it.scanned_at.substr(5,11)):'')+'</div></div>';
+      if(it.result_type==='duplicate'){
+        var iv2=fmtInterval(it.first_correct_at,it.scanned_at);
+        var sec2=intervalSec(it.first_correct_at,it.scanned_at);
+        var hint2=sec2===null?'':(sec2<=20?'\u8fd120\u79d2\u5185\uff0c\u5927\u6982\u7387\u662f\u672c\u5361\u677f\u91cd\u590d\u626b\u7801':'\u8d85\u8fc720\u79d2\uff0c\u53ef\u80fd\u662f\u5176\u4ed6\u5361\u677f\u91cd\u590d\u6216\u6807\u7b7e\u771f\u7684\u91cd\u590d\uff0c\u8bf7\u4ed4\u7ec6\u68c0\u67e5');
+        html+='<div class="item-row"><div class="code">\u26a0\ufe0f '+esc(it.code)+'</div><div class="sub">\u7b2c1\u6b21\u6b63\u786e\uff1a'+fmtScanTime(it.first_correct_at)+'</div><div class="sub">\u7b2c2\u6b21\u91cd\u590d\uff1a'+fmtScanTime(it.scanned_at)+'</div><div class="sub">\u95f4\u9694\uff1a'+iv2+'</div><div class="sub">'+hint2+'</div>';
+        if(it.resolved){html+='<div class="sub ok">\u5df2\u5904\u7406</div>';}
+        else{html+='<button type="button" onclick="resolveDuplicateRecord('+it.record_id+')" style="margin-top:6px;background:#1a73e8;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px">\u2705 \u5df2\u68c0\u67e5\uff0c\u7ee7\u7eed\u626b\u7801</button>';}
+        html+='</div>';
+      }else{
+        html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+esc(it.result_label||'')+(it.scanned_at?' \u00b7 '+esc(it.scanned_at.substr(5,11)):'')+'</div></div>';
+      }
     }else if(view==='scanned'){
       html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+(it.scanned_at?esc(it.scanned_at.substr(5,11)):'')+'</div></div>';
     }else if(view==='pending'){
@@ -998,7 +1014,8 @@ async function checkBox(){
     wrongLock={code:null};
   }else if(d.result==='duplicate'){
     playError();
-    r.className='r dup';r.innerHTML='<div class="ico">⚠️</div><div class="s">疑似重复 / 重贴</div><div class="d">箱码 '+esc(d.code)+'<br>首次正确：'+(d.first_correct_at?d.first_correct_at.substr(0,16):'--')+'<br>本次重复：'+(d.scanned_at?d.scanned_at.substr(0,16):'--')+'<br>请检查标签是否重贴或重复扫码，拿不准请联系管理员</div><button type="button" onclick="dismissDuplicate()" style="margin-top:8px;background:#1a73e8;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:14px">已检查，继续扫码</button>';
+    var iv=fmtInterval(d.first_correct_at,d.scanned_at);var sec=intervalSec(d.first_correct_at,d.scanned_at);var hint=sec===null?'':(sec<=20?'\u8fd120\u79d2\u5185\uff0c\u5927\u6982\u7387\u662f\u672c\u5361\u677f\u91cd\u590d\u626b\u7801':'\u8d85\u8fc720\u79d2\uff0c\u53ef\u80fd\u662f\u5176\u4ed6\u5361\u677f\u91cd\u590d\u6216\u6807\u7b7e\u771f\u7684\u91cd\u590d\uff0c\u8bf7\u4ed4\u7ec6\u68c0\u67e5');lastDuplicate={id:d.duplicate_id||null,code:d.code||'',region:rg};
+    r.className='r dup';r.innerHTML='<div class="ico">\u26a0\ufe0f</div><div class="s">\u7591\u4f3c\u91cd\u590d / \u91cd\u8d34</div><div class="d">\u7bb1\u7801 '+esc(d.code)+'<br>\u7b2c1\u6b21\u6b63\u786e\uff1a'+(d.first_correct_at?d.first_correct_at.substr(0,16):'--')+'<br>\u7b2c2\u6b21\u91cd\u590d\uff1a'+(d.scanned_at?d.scanned_at.substr(0,16):'--')+'<br>\u95f4\u9694\uff1a'+iv+'<br>'+hint+'</div><button type="button" onclick="resolveDuplicatePopup()" style="margin-top:8px;background:#1a73e8;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:14px">\u2705 \u5df2\u68c0\u67e5\uff0c\u7ee7\u7eed\u626b\u7801</button>';
     wrongLock={code:null};
   }else if(d.result==='wrong_region'){
     playError();
@@ -1026,10 +1043,34 @@ async function checkBox(){
   document.getElementById('codeInput').value='';
   document.getElementById('codeInput').blur();
 }
-function dismissDuplicate(){
+async function resolveDuplicatePopup(){
+  var d=lastDuplicate;
   document.getElementById('result').style.display='none';
   document.getElementById('codeInput').value='';
   document.getElementById('codeInput').blur();
+  if(!d||!d.id){lastDuplicate=null;focusCode();return}
+  var fd=new FormData();fd.append('action','box_resolve_duplicate');fd.append('batch_name',currentBatch.id);fd.append('region',d.region||currentRegion());fd.append('record_id',d.id);
+  try{
+    var r=await fetch('/run',{method:'POST',body:fd});var j=await r.json();
+    if(j.status!=='ok'){alert('\u274c '+(j.message||'\u5904\u7406\u5931\u8d25'))}
+    var d2=await fetchJSON('/box_batch_info?batch='+currentBatch.id);
+    if(d2&&d2.region_stats){regionStats=d2.region_stats||{};locks=d2.locks||{};}
+    renderRegionStats();renderRegionBoardMobile();refreshLockUI();refreshRegionHistory();
+  }catch(e){alert('\u274c '+e.message)}
+  lastDuplicate=null;focusCode();
+}
+async function resolveDuplicateRecord(record_id){
+  if(!currentBatch)return;
+  var rg=currentRegion();if(!rg)return;
+  var fd=new FormData();fd.append('action','box_resolve_duplicate');fd.append('batch_name',currentBatch.id);fd.append('region',rg);fd.append('record_id',record_id);
+  try{
+    var r=await fetch('/run',{method:'POST',body:fd});var j=await r.json();
+    if(j.status!=='ok'){alert('\u274c '+(j.message||'\u5904\u7406\u5931\u8d25'));return}
+    var d2=await fetchJSON('/box_batch_info?batch='+currentBatch.id);
+    if(d2&&d2.region_stats){regionStats=d2.region_stats||{};locks=d2.locks||{};}
+    renderRegionStats();renderRegionBoardMobile();refreshLockUI();refreshRegionHistory();
+    openItems('abnormal');
+  }catch(e){alert('\u274c '+e.message)}
 }
 async function returnWrong(){
   if(!wrongLock.code||!currentBatch){return}
@@ -1143,6 +1184,7 @@ button{padding:8px 14px;border:none;border-radius:6px;font-size:13px;cursor:poin
 </style></head><body>
 <div class="toprow"><h1>📦 箱码发货管理</h1><button class="b1 qrbtn" id="qrBtn" onclick="openQr()">📱 手机端二维码</button></div>
 <div class="upbox"><div class="ut">上传发货汇总Excel（按货件单号+总箱数展开成每箱条码，批次名=完整文件名）</div><input type="file" id="boxFile" accept=".xlsx,.xls"><button class="b1" onclick="document.getElementById('boxFile').click()">📤 选择文件</button><span class="fn" id="boxFileName">未选择文件</span><button class="b3" id="boxUploadBtn" disabled onclick="uploadBox()">上传箱码批次</button><div class="upmsg" id="upmsg"></div></div>
+<div style="text-align:center;margin:4px 0 8px"><button class="b2" onclick="loadItems()">🔄 刷新</button></div>
 <div class="bar"><select id="batchSel" onchange="loadItems()"><option value="">选择批次...</option></select><button class="b2" id="shipBtn" onclick="shipBatch()">✅ 确认发货</button><button class="b4" id="deleteBtn" onclick="deleteBatch()">🗑 删除批次</button></div>
 <div class="tip" id="batchTip">请选择批次查看明细。</div>
 <div class="regionboard" id="regionBoard"></div>
@@ -1155,6 +1197,8 @@ button{padding:8px 14px;border:none;border-radius:6px;font-size:13px;cursor:poin
 <div class="qrmodal" id="qrModal"><div class="qrmodal-box"><button class="qrmodal-close" onclick="closeQr()">×</button><div class="qrlabel">手机扫码打开手机端</div><img src="/box_scan_qr" alt="手机端二维码"><div class="qrurl" id="qrUrl"></div><div class="qrmodal-actions"><button class="b3" onclick="copyQrUrl()">复制链接</button><button class="b1" onclick="closeQr()">关闭</button></div></div></div>
 <script>
 var batches=[], cur=null, viewMode='';
+function fmtGap(sec){if(sec<0)sec=0;if(sec<60)return sec+'秒';var m=Math.floor(sec/60);return m+'分'+(sec%60)+'秒';}
+function dupHint(sec){return sec<=20?'20秒内，大概率是本卡板重复扫码':'超过20秒，可能是其他卡板重复或标签真的重复，请仔细检查';}
 function setView(mode){viewMode=mode;document.getElementById('q').value='';loadItems();}
 function esc(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function renderStats(st){if(!st)st={expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};document.getElementById('tiles').innerHTML='<div class="tile"><b>'+st.expected+'</b><span>应有箱数</span></div><div class="tile ok"><b>'+st.scanned+'</b><span>已扫</span></div><div class="tile"><b>'+st.remaining+'</b><span>剩余</span></div><div class="tile warn" style="cursor:pointer" onclick="setView(&#39;wrong&#39;)"><b>'+st.wrong+'</b><span>放错区域</span></div><div class="tile warn" style="cursor:pointer" onclick="setView(&#39;abnormal&#39;)"><b>'+(st.not_found+st.duplicate)+'</b><span>异常扫码</span></div>'}
@@ -1201,7 +1245,7 @@ function renderRegionBoard(d){
       var b=document.createElement('b');b.textContent=value;
       var sp=document.createElement('span');sp.textContent=label;
       box.appendChild(b);box.appendChild(sp);
-      if(alertMetric){var dn=document.createElement('span');dn.className='done';var rc=0;if(mode==='wrong')rc=Number(st.resolved_wrong||0);else if(mode==='duplicate')rc=Number(st.resolved_duplicate||0);else if(mode==='not_found')rc=Number(st.resolved_not_found||0);dn.textContent='已处理 '+rc;if(rc>0)dn.className='done has';box.appendChild(dn);}
+      if(alertMetric){var dn=document.createElement('span');dn.className='done';var rc=0;if(mode==='wrong')rc=Number(st.resolved_wrong||0);else if(mode==='duplicate')rc=Number(st.resolved_duplicate||0);else if(mode==='not_found')rc=Number(st.resolved_not_found||0);dn.textContent='已处理 '+rc;if(rc>0){dn.className='done has';dn.style.cursor='pointer';dn.onclick=function(){openRegionView(rg,'resolved_'+mode)};}box.appendChild(dn);}
       if(mode!==null && mode!==undefined){box.onclick=function(){openRegionView(rg,mode)};}
       metrics.appendChild(box);
     });
@@ -1266,14 +1310,29 @@ async function loadItems(){
   var lp=document.getElementById('lockPanel');lp.innerHTML='';var locks=d.locks||{};
   if(Object.keys(locks).length){var lt=document.createElement('b');lt.textContent='区域锁定';lp.appendChild(lt);Object.keys(locks).forEach(function(rg){var reason=locks[rg].reason==='duplicate'?'重复扫码':(locks[rg].reason==='not_found'?'清单中无此码':locks[rg].reason);var lk=document.createElement('div');lk.className='lk';var sp=document.createElement('span');sp.textContent='🔒 '+rg+'（'+reason+'）';var ub=document.createElement('button');ub.textContent='🔓 解锁';ub.onclick=function(){unlockRegion(rg)};lk.appendChild(sp);lk.appendChild(ub);lp.appendChild(lk)});lp.style.display='block';}else{lp.style.display='none'}
   var items=d.items||[];var h='';
+  if(d.view==='resolved'||d.view==='resolved_wrong'||d.view==='resolved_duplicate'||d.view==='resolved_not_found'){
+    h='<tr><th>箱码</th><th>异常类型</th><th>扫描区域</th><th>扫码时间</th><th>首次正确</th><th>间隔</th><th>提示</th><th>处理时间</th></tr>';
+    if(!items.length)h+='<tr><td colspan="8" class="na">没有已处理记录</td></tr>';
+    items.forEach(function(i){
+      var fc=i.first_correct_at||'', sc=i.scanned_at||'';
+      var gap='--', hint='';
+      if(i.result_type==='duplicate'&&fc&&sc){var t1=Date.parse(fc.replace(' ','T')),t2=Date.parse(sc.replace(' ','T'));if(!isNaN(t1)&&!isNaN(t2)){var sec=Math.max(0,Math.round((t2-t1)/1000));gap=fmtGap(sec);hint=dupHint(sec);}}
+      h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.result_label||'')+'</td><td>'+esc(i.region||'-')+'</td><td>'+(sc?sc.substr(0,16):'--')+'</td><td>'+(i.result_type==='duplicate'?(fc?fc.substr(0,16):'--'):'-')+'</td><td>'+(i.result_type==='duplicate'?gap:'-')+'</td><td>'+(i.result_type==='duplicate'?hint:'-')+'</td><td>'+(i.resolved_at?i.resolved_at.substr(0,16):'--')+'</td></tr>';
+    });
+  }
   if(d.view==='wrong'){
     h='<tr><th>箱码</th><th>扫描区域</th><th>应属区域</th><th>扫码时间</th></tr>';
     if(!items.length)h+='<tr><td colspan="4" class="na">没有放错区域记录</td></tr>';
     items.forEach(function(i){h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.region||'-')+'</td><td>'+esc(i.expected_region||'-')+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
   }else if(d.view==='duplicate'){
-    h='<tr><th>箱码</th><th>扫描区域</th><th>首次正确时间</th><th>本次重复时间</th><th>时间差</th></tr>';
-    if(!items.length)h+='<tr><td colspan="5" class="na">没有重复扫码记录</td></tr>';
-    items.forEach(function(i){var fc=i.first_correct_at||'', sc=i.scanned_at||'';var diff='--';if(fc&&sc){var t1=Date.parse(fc.replace(' ','T')),t2=Date.parse(sc.replace(' ','T'));if(!isNaN(t1)&&!isNaN(t2)){var sec=Math.max(0,Math.round((t2-t1)/1000));if(sec<60)diff=sec+'秒';else if(sec<3600)diff=Math.floor(sec/60)+'分钟';else diff=Math.floor(sec/3600)+'小时'+Math.floor((sec%3600)/60)+'分钟';}}h+='<tr class="dup-row"><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.region||'-')+'</td><td>'+(fc?fc.substr(0,16):'--')+'</td><td>'+(sc?sc.substr(0,16):'--')+'</td><td>'+diff+'</td></tr>'});
+    h='<tr><th>箱码</th><th>扫描区域</th><th>首次正确时间</th><th>本次重复时间</th><th>间隔</th><th>提示</th></tr>';
+    if(!items.length)h+='<tr><td colspan="6" class="na">没有重复扫码记录</td></tr>';
+    items.forEach(function(i){
+      var fc=i.first_correct_at||'', sc=i.scanned_at||'';
+      var gap='--', hint='';
+      if(fc&&sc){var t1=Date.parse(fc.replace(' ','T')),t2=Date.parse(sc.replace(' ','T'));if(!isNaN(t1)&&!isNaN(t2)){var sec=Math.max(0,Math.round((t2-t1)/1000));gap=fmtGap(sec);hint=dupHint(sec);}}
+      h+='<tr class="dup-row"><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.region||'-')+'</td><td>'+(fc?fc.substr(0,16):'--')+'</td><td>'+(sc?sc.substr(0,16):'--')+'</td><td>'+gap+'</td><td>'+hint+'</td></tr>';
+    });
   }else if(d.view==='abnormal'||d.view==='not_found'){
     h='<tr><th>箱码</th><th>扫描区域</th><th>异常类型</th><th>说明</th><th>扫码时间</th></tr>';
     if(!items.length)h+='<tr><td colspan="5" class="na">没有异常扫码记录</td></tr>';
@@ -2849,11 +2908,11 @@ class H(http.server.BaseHTTPRequestHandler):
                         estimated = {'pos': max(1, next_info['pos'] - 1), 'start': max(1, next_info['pos'] - 1), 'end': max(1, next_info['pos'] - 1)}
                     items.append({'code': code, 'status': 'pending', 'scanned_at': '', 'fba': fba, 'same_total': same_total, 'same_scanned': same_scanned, 'same_prev': same_prev, 'same_next': same_next, 'prev': prev_info, 'next': next_info, 'estimated': estimated, 'using_same': using_same})
             elif view == 'abnormal':
-                c.execute("SELECT s.code, s.result, s.scanned_at, i.region FROM box_scans s LEFT JOIN box_items i ON i.batch_id=s.batch_id AND i.code=s.code WHERE s.batch_id=? AND s.region=? AND s.result IN ('wrong_region','not_found','duplicate') ORDER BY s.id DESC LIMIT 1000", (bid, region))
+                c.execute("SELECT s.id, s.code, s.result, s.scanned_at, i.region, s.resolved, (SELECT MIN(x.scanned_at) FROM box_scans x WHERE x.batch_id=s.batch_id AND x.code=s.code AND x.result='correct') FROM box_scans s LEFT JOIN box_items i ON i.batch_id=s.batch_id AND i.code=s.code WHERE s.batch_id=? AND s.region=? AND s.result IN ('wrong_region','not_found','duplicate') ORDER BY s.id DESC LIMIT 1000", (bid, region))
                 for r in c.fetchall():
-                    result = r[1]
-                    label = '放错区域' if result == 'wrong_region' else ('重复扫码' if result == 'duplicate' else '清单中无此码')
-                    items.append({'code':r[0] or '', 'result_type':result, 'result_label':label, 'scanned_at':r[2] or '', 'expected_region':r[3] or ''})
+                    result = r[2]
+                    label = '\u653e\u9519\u533a\u57df' if result == 'wrong_region' else ('\u91cd\u590d\u626b\u7801' if result == 'duplicate' else '\u6e05\u5355\u4e2d\u65e0\u6b64\u7801')
+                    items.append({'record_id':r[0], 'code':r[1] or '', 'result_type':result, 'result_label':label, 'scanned_at':r[3] or '', 'expected_region':r[4] or '', 'resolved':r[5], 'first_correct_at':r[6] or ''})
             else:
                 c.execute('SELECT code, status, scanned_at FROM box_items WHERE batch_id=? AND region=? ORDER BY id LIMIT 1000', (bid, region))
                 items = [{'code':r[0], 'status':r[1], 'scanned_at':r[2] or ''} for r in c.fetchall()]
@@ -2905,6 +2964,27 @@ class H(http.server.BaseHTTPRequestHandler):
                         duration_text = (str(hours) + '小时' if hours else '') + str(minutes) + '分钟'
                 except:
                     pass
+            if view in ('resolved', 'resolved_wrong', 'resolved_duplicate', 'resolved_not_found'):
+                scan_where = 's.batch_id=? AND s.resolved=1'
+                scan_args = [bid]
+                if region:
+                    scan_where += ' AND s.region=?'; scan_args.append(region)
+                if view == 'resolved_wrong':
+                    scan_where += " AND s.result='wrong_region'"
+                elif view == 'resolved_duplicate':
+                    scan_where += " AND s.result='duplicate'"
+                elif view == 'resolved_not_found':
+                    scan_where += " AND s.result='not_found'"
+                c.execute("SELECT s.code, s.worker, s.result, s.region, s.note, s.scanned_at, i.region, (SELECT MIN(sc.scanned_at) FROM box_scans sc WHERE sc.batch_id=s.batch_id AND sc.code=s.code AND sc.result='correct'), s.resolved_at FROM box_scans s LEFT JOIN box_items i ON i.batch_id=s.batch_id AND i.code=s.code WHERE "+scan_where+" ORDER BY s.resolved_at DESC, s.id DESC LIMIT 500", scan_args)
+                rows = c.fetchall()
+                items = []
+                for r in rows:
+                    result = r[2]
+                    label = '放错区域' if result == 'wrong_region' else ('重复扫码' if result == 'duplicate' else '清单中无此码')
+                    items.append({'code':r[0] or '', 'worker':r[1] or '', 'result_type':result, 'result_label':label, 'region':r[3] or '', 'note':r[4] or '', 'scanned_at':r[5] or '', 'expected_region':r[6] or '', 'first_correct_at':r[7] or '', 'resolved_at':r[8] or ''})
+                item_count = len(items); shown_count = len(items)
+                conn.close()
+                return self._json({'batches':batches, 'batch':batch, 'regions':regions, 'region_stats':region_stats, 'stats':get_box_stats(bid, region), 'item_count':item_count, 'shown_count':shown_count, 'items':items, 'view':view, 'scan_first':scan_first, 'scan_last':scan_last, 'duration_text':duration_text, 'locks':get_box_locks(bid)})
             if view in ('wrong', 'duplicate', 'not_found', 'abnormal'):
                 scan_where = 's.batch_id=?'
                 scan_args = [bid]
@@ -3211,7 +3291,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # Debug logging
             print(f'[DEBUG] POST action=\"{action}\" fname=\"{fname}\" fdata_size={len(fdata) if fdata else 0} parts={len(parts)}', flush=True)
             # Non-upload actions don't need a file
-            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal'):
+            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal', 'box_resolve_duplicate'):
                 pass  # handle below
             elif not fdata or not fname:
                 return self._json({'status':'error','message':'No file'})
@@ -3402,7 +3482,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 if not bid or not region:
                     return self._json({'status':'error','message':'请选择批次和区域'})
                 conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-                c.execute('UPDATE box_scans SET resolved=1 WHERE batch_id=? AND region=? AND result IN (\'not_found\',\'duplicate\') AND resolved=0', (bid, region))
+                c.execute("UPDATE box_scans SET resolved=1, resolved_at=? WHERE batch_id=? AND region=? AND result IN ('not_found','duplicate') AND resolved=0", (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), bid, region))
                 conn.commit(); conn.close()
                 log_box_event(bid, region, 'abnormal_resolved', '', '管理员', '确认异常已处理')
                 return self._json({'status':'ok','message':'该区域异常已标记处理'})
@@ -3417,6 +3497,22 @@ class H(http.server.BaseHTTPRequestHandler):
                 conn.commit(); conn.close()
                 log_box_event(bid, region, 'wrong_region_returned', code, '工人', '已放回正确区域')
                 return self._json({'status':'ok','message':'已确认放回正确区域，请继续扫码'})
+            if action == 'box_resolve_duplicate':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                record_id = self._get_post('record_id', '0')
+                try: record_id = int(record_id)
+                except: record_id = 0
+                region = self._get_post('region', '').strip()
+                if not bid or not record_id:
+                    return self._json({'status':'error','message':'\u53c2\u6570\u9519\u8bef'})
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute("UPDATE box_scans SET resolved=1, resolved_at=? WHERE id=? AND batch_id=? AND result='duplicate'", (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), record_id, bid))
+                conn.commit()
+                c.execute('SELECT code FROM box_scans WHERE id=?', (record_id,))
+                row = c.fetchone(); conn.close()
+                code = row[0] if row else ''
+                log_box_event(bid, region, 'duplicate_resolved', code, '\u5de5\u4eba', '\u5df2\u786e\u8ba4\u91cd\u590d\u5e76\u7ee7\u7eed\u626b\u7801')
+                return self._json({'status':'ok','message':'\u5df2\u786e\u8ba4\u91cd\u590d\uff0c\u7ee7\u7eed\u626b\u7801'})
             if action == 'save_efficiency':
                 sku = self._get_post('sku', '').strip().upper()
                 rate = self._get_post('rate', '')
