@@ -752,6 +752,17 @@ h1{font-size:18px;text-align:center;padding:8px 0 2px}
 .list div{padding:3px 0;border-bottom:1px solid #eee}.list div:last-child{border:none}
 .list div.dup-row{background:#fff7e0;color:#b26a00;padding-left:4px;border-radius:3px}
 .cr{font-size:11px;color:#999;text-align:center;margin-top:12px}
+.items-panel{display:none;margin-bottom:8px;background:#fff;border:1px solid #1a73e8;border-radius:8px;overflow:hidden}
+.items-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:bold;color:#1a73e8}
+.items-close{background:#f1f3f4;border:none;border-radius:6px;padding:4px 10px;font-size:12px;color:#555;cursor:pointer}
+.items-body{max-height:55vh;overflow-y:auto;padding:4px 8px}
+.item-row{padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:12px}
+.item-row:last-child{border-bottom:none}
+.item-row .code{font-weight:bold}
+.item-row .sub{color:#888;font-size:11px;margin-top:2px}
+.items-empty{padding:16px;text-align:center;color:#999;font-size:12px}
+.tile{cursor:pointer}
+.tile:active{background:#f1f8ff}
 </style></head><body>
 <div class="hdr"><h1>📦 箱码扫码核对</h1><button class="rf" onclick="loadInfo()">🔄 刷新</button></div>
 <p class="st" id="batchInfo">加载中...</p>
@@ -763,6 +774,7 @@ h1{font-size:18px;text-align:center;padding:8px 0 2px}
 <div id="returnBtn" class="return-btn" onclick="returnWrong()">✅ 已放回正确区域</div>
 <div id="lockMsg" class="lockmsg"></div>
 <div class="list" id="scanList"></div>
+<div class="items-panel" id="itemsPanel"><div class="items-head"><span id="itemsTitle">箱码列表</span><button class="items-close" onclick="closeItems()">关闭</button></div><div class="items-body" id="itemsBody">加载中...</div></div>
 <script>
 function esc(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 var batches=[], currentBatch=null, regionStats={}, locks={}, wrongLock={code:null};
@@ -773,6 +785,7 @@ function playOk(){ensureAudio();if(!audioCtx)return;tone(880,0,0.12,'sine',0.28)
 function playError(){ensureAudio();if(!audioCtx)return;tone(220,0,0.15,'square',0.22);tone(165,0.18,0.22,'square',0.22);try{if(navigator.vibrate)navigator.vibrate(200);}catch(e){}}
 document.addEventListener('touchstart',function(){ensureAudio();},{passive:true});
 var _ci=document.getElementById('codeInput');if(_ci){_ci.addEventListener('focus',ensureAudio);_ci.addEventListener('touchstart',ensureAudio);}
+var _tiles=document.getElementById('tiles');if(_tiles){_tiles.addEventListener('click',function(e){var el=e.target;while(el&&el!==_tiles&&!el.getAttribute('data-view')){el=el.parentElement}if(el&&el.getAttribute('data-view')){openItems(el.getAttribute('data-view'))}})}
 document.addEventListener('keydown',function(e){
   if(e.repeat){return}
   var input=document.getElementById('codeInput');
@@ -820,7 +833,52 @@ function refreshLockUI(){
 }
 function renderStats(rs){
   if(!rs)rs={expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};
-  document.getElementById('tiles').innerHTML='<div class="tile"><b>'+rs.expected+'</b><span>应扫</span></div><div class="tile ok"><b>'+rs.scanned+'</b><span>已扫</span></div><div class="tile"><b>'+rs.remaining+'</b><span>剩余</span></div><div class="tile warn"><b>'+(rs.wrong+rs.not_found+rs.duplicate)+'</b><span>异常</span></div>';
+  document.getElementById('tiles').innerHTML='<div class="tile" data-view="all"><b>'+rs.expected+'</b><span>应扫</span></div><div class="tile ok" data-view="scanned"><b>'+rs.scanned+'</b><span>已扫</span></div><div class="tile" data-view="pending"><b>'+rs.remaining+'</b><span>剩余</span></div><div class="tile warn" data-view="abnormal"><b>'+(rs.wrong+rs.not_found+rs.duplicate)+'</b><span>异常</span></div>';
+}
+function fmtScanTime(t){ if(!t) return ''; var y=t.substr(0,10); var now=new Date(); var z=function(n){return (n<10?'0':'')+n}; var today=now.getFullYear()+'-'+z(now.getMonth()+1)+'-'+z(now.getDate()); return y===today ? t.substr(11,8) : t.substr(5,11); }
+async function openItems(view){
+  if(!currentBatch){alert('请先选择批次');return}
+  var rg=currentRegion();if(!rg){alert('请先选择区域');return}
+  var titles={all:'应扫箱码',scanned:'已扫箱码',pending:'剩余箱码',abnormal:'异常箱码'};
+  document.getElementById('itemsTitle').textContent=titles[view]||'箱码列表';
+  document.getElementById('itemsPanel').style.display='block';
+  document.getElementById('itemsBody').innerHTML='加载中...';
+  try{
+    var d=await fetchJSON('/box_mobile_items?batch='+currentBatch.id+'&region='+encodeURIComponent(rg)+'&view='+encodeURIComponent(view));
+    renderMobileItems(d.items||[], view);
+  }catch(e){document.getElementById('itemsBody').innerHTML='加载失败，请稍后重试'}
+}
+function closeItems(){document.getElementById('itemsPanel').style.display='none'}
+function renderMobileItems(items, view){
+  var body=document.getElementById('itemsBody');
+  if(!items||!items.length){body.innerHTML='<div class="items-empty">暂无数据</div>';return}
+  var html='';
+  items.forEach(function(it){
+    if(view==='abnormal'){
+      html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+esc(it.result_label||'')+(it.scanned_at?' · '+esc(it.scanned_at.substr(5,11)):'')+'</div></div>';
+    }else if(view==='scanned'){
+      html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+(it.scanned_at?esc(it.scanned_at.substr(5,11)):'')+'</div></div>';
+    }else if(view==='pending'){
+      html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div>';
+      if(it.fba)html+='<div class="sub loc">同码：'+esc(it.fba)+' 共'+it.same_total+'箱，已扫'+it.same_scanned+'箱</div>';
+      if(it.same_prev)html+='<div class="sub loc">同码上一箱：'+esc(it.same_prev.code)+'（第'+it.same_prev.pos+'箱）'+fmtScanTime(it.same_prev.time)+'</div>';
+      if(it.same_next)html+='<div class="sub loc">同码下一箱：'+esc(it.same_next.code)+'（第'+it.same_next.pos+'箱）'+fmtScanTime(it.same_next.time)+'</div>';
+      var loc='预计位置：无法按已扫顺序定位';
+      if(it.estimated&&it.estimated.pos){
+        if(it.estimated.start&&it.estimated.end&&it.estimated.start!==it.estimated.end){loc='预计位置：已扫第 '+it.estimated.start+'～'+it.estimated.end+' 箱之间';}
+        else{loc='预计位置：已扫第 '+it.estimated.pos+' 箱附近';}
+      }
+      html+='<div class="sub loc">'+esc(loc)+'</div>';
+      if(!it.using_same){
+        if(it.prev)html+='<div class="sub loc">前面已扫：'+esc(it.prev.code)+'（第'+it.prev.pos+'箱）'+fmtScanTime(it.prev.time)+'</div>';
+        if(it.next)html+='<div class="sub loc">后面已扫：'+esc(it.next.code)+'（第'+it.next.pos+'箱）'+fmtScanTime(it.next.time)+'</div>';
+      }
+      html+='</div>';
+    }else{
+      html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+esc(it.status==='scanned'?'已扫':'未扫')+'</div></div>';
+    }
+  });
+  body.innerHTML=html;
 }
 function currentRegion(){return document.getElementById('regionSel').value}
 function renderRegionStats(){
@@ -2673,6 +2731,135 @@ class H(http.server.BaseHTTPRequestHandler):
             conn.close()
             return self._json({'history':history})
         
+        if p.startswith('/box_mobile_items'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            bid = int(q.get('batch',['0'])[0]) if q.get('batch',['0'])[0].isdigit() else 0
+            region = q.get('region',[''])[0].strip()
+            view = q.get('view',[''])[0].strip().lower()
+            if not bid or not region:
+                return self._json({'items':[]})
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            items = []
+            if view == 'scanned':
+                c.execute("SELECT code, status, scanned_at FROM box_items WHERE batch_id=? AND region=? AND status='scanned' ORDER BY id LIMIT 1000", (bid, region))
+                items = [{'code':r[0], 'status':r[1], 'scanned_at':r[2] or ''} for r in c.fetchall()]
+            elif view == 'pending':
+                c.execute("SELECT id, code, fba, box_no, status FROM box_items WHERE batch_id=? AND region=? ORDER BY id", (bid, region))
+                box_rows = c.fetchall()
+                pending_rows = [(i, r) for i, r in enumerate(box_rows) if r[4] == 'pending']
+                pending_rows = pending_rows[:1000]
+                c.execute("SELECT code, scanned_at FROM box_scans WHERE batch_id=? AND region=? AND result='correct' ORDER BY id", (bid, region))
+                scan_list = c.fetchall()
+                scan_pos = {}
+                for pos, srow in enumerate(scan_list, 1):
+                    scan_pos[srow[0]] = (pos, srow[1] or '')
+                items = []
+                for idx, r in pending_rows:
+                    code = r[1]
+                    fba = r[2] or ''
+                    box_no = r[3] or ''
+                    try:
+                        cur_box = int(box_no)
+                    except:
+                        cur_box = idx
+                    same_total = 0
+                    same_scanned = 0
+                    same_indices = []
+                    for j, br in enumerate(box_rows):
+                        if br[2] == fba:
+                            same_total += 1
+                            if br[4] == 'scanned' and br[1] in scan_pos:
+                                same_scanned += 1
+                                same_indices.append(j)
+                    def box_num_from_row(row):
+                        try:
+                            return int(row[3])
+                        except:
+                            return idx
+                    prev_same_idx = None
+                    next_same_idx = None
+                    for j in same_indices:
+                        bnum = box_num_from_row(box_rows[j])
+                        if bnum < cur_box:
+                            if prev_same_idx is None or bnum > box_num_from_row(box_rows[prev_same_idx]):
+                                prev_same_idx = j
+                        elif bnum > cur_box:
+                            if next_same_idx is None or bnum < box_num_from_row(box_rows[next_same_idx]):
+                                next_same_idx = j
+                    nearest_same_idx = None
+                    if prev_same_idx is None and next_same_idx is None and same_indices:
+                        nearest_same_idx = min(same_indices, key=lambda j: abs(box_num_from_row(box_rows[j]) - cur_box))
+                    prev_fallback_idx = None
+                    next_fallback_idx = None
+                    for j in range(idx - 1, -1, -1):
+                        if box_rows[j][4] == 'scanned' and box_rows[j][1] in scan_pos:
+                            prev_fallback_idx = j
+                            break
+                    for j in range(idx + 1, len(box_rows)):
+                        if box_rows[j][4] == 'scanned' and box_rows[j][1] in scan_pos:
+                            next_fallback_idx = j
+                            break
+                    same_prev = None
+                    same_next = None
+                    prev_info = None
+                    next_info = None
+                    using_same = False
+                    if prev_same_idx is not None:
+                        ppos, ptime = scan_pos[box_rows[prev_same_idx][1]]
+                        same_prev = {'code': box_rows[prev_same_idx][1], 'pos': ppos, 'time': ptime}
+                        prev_info = same_prev
+                        using_same = True
+                    if next_same_idx is not None:
+                        npos, ntime = scan_pos[box_rows[next_same_idx][1]]
+                        same_next = {'code': box_rows[next_same_idx][1], 'pos': npos, 'time': ntime}
+                        next_info = same_next
+                        using_same = True
+                    if nearest_same_idx is not None:
+                        npos, ntime = scan_pos[box_rows[nearest_same_idx][1]]
+                        nearest_info = {'code': box_rows[nearest_same_idx][1], 'pos': npos, 'time': ntime}
+                        if same_next is None:
+                            same_next = nearest_info
+                        if next_info is None:
+                            next_info = nearest_info
+                        using_same = True
+                    if prev_info is None and prev_fallback_idx is not None:
+                        ppos, ptime = scan_pos[box_rows[prev_fallback_idx][1]]
+                        prev_info = {'code': box_rows[prev_fallback_idx][1], 'pos': ppos, 'time': ptime}
+                    if next_info is None and next_fallback_idx is not None:
+                        npos, ntime = scan_pos[box_rows[next_fallback_idx][1]]
+                        next_info = {'code': box_rows[next_fallback_idx][1], 'pos': npos, 'time': ntime}
+                    estimated = None
+                    if same_prev and same_next:
+                        ppos = same_prev['pos']; npos = same_next['pos']
+                        if ppos < npos:
+                            estimated = {'pos': (ppos + npos) // 2, 'start': ppos + 1, 'end': npos - 1}
+                        else:
+                            estimated = {'pos': ppos + 1, 'start': ppos + 1, 'end': ppos + 1}
+                    elif same_next:
+                        npos = same_next['pos']
+                        estimated = {'pos': max(1, npos - 1), 'start': max(1, npos - 1), 'end': npos}
+                    elif same_prev:
+                        ppos = same_prev['pos']
+                        estimated = {'pos': ppos + 1, 'start': ppos, 'end': ppos + 1}
+                    elif prev_info and next_info:
+                        estimated = {'pos': prev_info['pos'] + 1, 'start': prev_info['pos'] + 1, 'end': max(prev_info['pos'] + 1, next_info['pos'] - 1)}
+                    elif prev_info:
+                        estimated = {'pos': prev_info['pos'] + 1, 'start': prev_info['pos'] + 1, 'end': prev_info['pos'] + 1}
+                    elif next_info:
+                        estimated = {'pos': max(1, next_info['pos'] - 1), 'start': max(1, next_info['pos'] - 1), 'end': max(1, next_info['pos'] - 1)}
+                    items.append({'code': code, 'status': 'pending', 'scanned_at': '', 'fba': fba, 'same_total': same_total, 'same_scanned': same_scanned, 'same_prev': same_prev, 'same_next': same_next, 'prev': prev_info, 'next': next_info, 'estimated': estimated, 'using_same': using_same})
+            elif view == 'abnormal':
+                c.execute("SELECT s.code, s.result, s.scanned_at, i.region FROM box_scans s LEFT JOIN box_items i ON i.batch_id=s.batch_id AND i.code=s.code WHERE s.batch_id=? AND s.region=? AND s.result IN ('wrong_region','not_found','duplicate') ORDER BY s.id DESC LIMIT 1000", (bid, region))
+                for r in c.fetchall():
+                    result = r[1]
+                    label = '放错区域' if result == 'wrong_region' else ('重复扫码' if result == 'duplicate' else '清单中无此码')
+                    items.append({'code':r[0] or '', 'result_type':result, 'result_label':label, 'scanned_at':r[2] or '', 'expected_region':r[3] or ''})
+            else:
+                c.execute('SELECT code, status, scanned_at FROM box_items WHERE batch_id=? AND region=? ORDER BY id LIMIT 1000', (bid, region))
+                items = [{'code':r[0], 'status':r[1], 'scanned_at':r[2] or ''} for r in c.fetchall()]
+            conn.close()
+            return self._json({'items':items})
+
         if p.startswith('/box_lock_status'):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
             bid = int(q.get('batch',['0'])[0]) if q.get('batch',['0'])[0].isdigit() else 0
@@ -3893,7 +4080,7 @@ if __name__ == '__main__':
     print('='*45)
     # 关闭旧数据库重新创建新schema
     # (new schema with region columns auto-creates)
-    threading.Timer(0.5, lambda: os.startfile(url)).start()
+    # threading.Timer(0.5, lambda: os.startfile(url)).start()
     print('\u6d4f\u89c8\u5668\u672a\u81ea\u52a8\u6253\u5f00\uff1f '+url)
     print('\u5de5\u4eba\u626b\u7801\uff1ahttp://'+get_ip()+':'+str(PORT)+'/scan')
     print('\u7ba1\u7406\u540e\u53f0\uff1ahttp://'+get_ip()+':'+str(PORT)+'/scan_admin')
