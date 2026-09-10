@@ -40,7 +40,7 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 .upload-zone:hover{border-color:#3182ce;color:#3182ce;background:#f7fafc}
 .upload-zone.has{border-color:#38a169;color:#38a169;background:#f0fff4}
 .btn{padding:7px 18px;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;transition:.15s}
-.btn-blue{background:#3182ce;color:#fff}.btn-green{background:#38a169;color:#fff}.btn-yellow{background:#d69e2e;color:#fff}
+.btn-blue{background:#3182ce;color:#fff}.btn-green{background:#38a169;color:#fff}.btn-yellow{background:#d69e2e;color:#fff}.btn-gray{background:#e2e8f0;color:#1a202c}
 .btn-purple{background:#5a67d8;color:#fff}.btn-red{background:#e53e3e;color:#fff}
 .btn:disabled{opacity:.5;cursor:not-allowed}.btn:hover:not(:disabled){filter:brightness(1.1)}
 .btn-sm{padding:4px 12px;font-size:11px}
@@ -240,9 +240,9 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 </div><!-- panel-home -->
 
 <!-- ===== 子面板 ===== -->
-<div class="panel" id="panel-lbl100"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F3F7;</div><h3>100×100 打印标签</h3></div><div class="card-bd"><p>上传手机壳装箱Excel，生成10×10cm打印标签。</p><div class="upload-zone" onclick="document.getElementById('f1a').click()" id="z1a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f1a" style="display:none" onchange="fs('f1a','z1a','b1a')"><button class="btn btn-blue" id="b1a" disabled onclick="doPost('lbl100','f1a','b1a','r1a')">生成标签</button><div class="result-box" id="r1a"></div></div></div></div>
+<div class="panel" id="panel-lbl100"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#3182ce">&#x1F3F7;</div><h3>100×100 打印标签</h3></div><div class="card-bd"><p>上传手机壳装箱Excel，生成10×10cm打印标签。</p><input class="ti" id="lbl100_code" type="text" placeholder="标签编号（选填，如 RK202609090001）" style="margin-bottom:8px"><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#4a5568;margin-bottom:8px"><input type="checkbox" id="lbl100_save"> 保存到桌面</label><div class="upload-zone" onclick="document.getElementById('f1a').click()" id="z1a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f1a" style="display:none" onchange="fs('f1a','z1a','b1a')"><button class="btn btn-blue" id="b1a" disabled onclick="doPost('lbl100','f1a','b1a','r1a')">生成标签</button><div class="result-box" id="r1a"></div></div></div></div>
 
-<div class="panel" id="panel-lbl30"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#38a169">&#x1F3F7;</div><h3>100×30 提货标签</h3></div><div class="card-bd"><p>上传司机提货信息Excel，生成提货标签。</p><div class="upload-zone" onclick="document.getElementById('f2a').click()" id="z2a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f2a" style="display:none" onchange="fs('f2a','z2a','b2a')"><button class="btn btn-green" id="b2a" disabled onclick="doPost('lbl30','f2a','b2a','r2a')">生成标签</button><div class="result-box" id="r2a"></div></div></div></div>
+<div class="panel" id="panel-lbl30"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#38a169">&#x1F3F7;</div><h3>100×30 提货标签</h3></div><div class="card-bd"><p>上传司机提货信息Excel，生成提货标签。</p><div class="upload-zone" onclick="document.getElementById('f2a').click()" id="z2a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f2a" style="display:none" onchange="fs('f2a','z2a','b2a')"><button class="btn btn-green" id="b2a" disabled onclick="doPost('lbl30','f2a','b2a','r2a')">生成标签</button><div class="result-box" id="r2a"></div><div style="border-top:1px dashed #cbd5e0;margin-top:10px;padding-top:10px"><p style="margin:0 0 6px">手动输入生成（不用上传Excel）</p><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><input class="ti" id="lbl30_text" type="text" placeholder="输入标签内容" style="flex:1;min-width:160px"><span style="font-size:12px;color:#4a5568">张数</span><input class="ti" id="lbl30_copies" type="number" min="1" max="100" value="1" style="width:62px"><span style="font-size:12px;color:#4a5568">字号</span><button type="button" class="btn btn-gray" onclick="changeLbl30Font(-1)">-</button><input class="ti" id="lbl30_font" type="number" min="8" max="40" value="25" style="width:58px"><button type="button" class="btn btn-gray" onclick="changeLbl30Font(1)">+</button></div><button class="btn btn-green" onclick="doLbl30Text(this)">生成标签</button><div class="result-box" id="r2b"></div></div></div></div></div>
 
 <div class="panel" id="panel-us"><div class="card panel-card"><div class="card-hd"><div class="ico" style="background:#d69e2e">&#x1F4CA;</div><h3>美国发货汇总</h3></div><div class="card-bd"><p>上传发货单Excel，按区域分组汇总。</p><div class="upload-zone" onclick="document.getElementById('f3a').click()" id="z3a">&#x1F4C4; 选择 Excel 文件</div><input type="file" accept=".xlsx,.xls" id="f3a" style="display:none" onchange="fs('f3a','z3a','b3a')"><button class="btn btn-yellow" id="b3a" disabled onclick="doPost('us','f3a','b3a','r3a')">生成汇总</button><div class="result-box" id="r3a"></div></div></div></div>
 
@@ -359,11 +359,46 @@ function s(id,c,m){var r=typeof id==='string'?document.getElementById(id):id;if(
 async function doPost(action,fid,bid,rid){
 var fi=document.getElementById(fid),btn=document.getElementById(bid),res=document.getElementById(rid);
 if(!fi||!btn||!res)return;if(!fi.files||!fi.files[0])return;
-btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s(res,'wa','\u23F3 ...');
-var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action',action);
-try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();s(res,d.status==='ok'?'ok':'er',d.status==='ok'?d.message:'\u274C '+d.message)}
-catch(e){s(res,'er','\u274C '+e.message)}
-btn.disabled=false;btn.textContent=action==='rc'?'\u6838\u5BF9':'\u751F\u6210';
+btn.disabled=true;btn.innerHTML='<span class="ld"></span>';s(res,'wa','⏳ ...');
+var fd=new FormData();fd.append('file',fi.files[0]);fd.append('action',action);var lc=document.getElementById('lbl100_code');if(lc)fd.append('label_code',lc.value.trim());
+var previewWindow=null;
+if(action==='lbl100'){var save=document.getElementById('lbl100_save');fd.append('save_to_desktop',save&&save.checked?'1':'0');previewWindow=window.open('','_blank');}
+try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();
+if(d.status==='ok'){
+s(res,'ok',d.message);
+if(d.url){
+if(previewWindow&&!previewWindow.closed){previewWindow.location.href=d.url;}
+else{res.innerHTML='<div>'+escHtml(d.message)+'</div><a class="btn btn-blue btn-sm" href="'+d.url+'" target="_blank" style="margin-top:6px;display:inline-block">在新窗口打开</a>';}
+}
+}else{s(res,'er','❌ '+(d.message||'生成失败'));}
+}catch(e){s(res,'er','❌ '+e.message);if(previewWindow&&!previewWindow.closed){previewWindow.close();}}
+btn.disabled=false;btn.textContent=action==='rc'?'核对':'生成';
+}
+
+async function doLbl30Text(btn){
+var txt=document.getElementById('lbl30_text'),res=document.getElementById('r2b');
+if(!txt||!txt.value.trim()){if(res)s(res,'er','❌ 请输入标签内容');return;}
+var c=document.getElementById('lbl30_copies');var copies=(c&&parseInt(c.value)>0)?parseInt(c.value):1;
+var f=document.getElementById('lbl30_font');var font_size=(f&&parseInt(f.value)>=8&&parseInt(f.value)<=40)?parseInt(f.value):25;
+if(btn){btn.disabled=true;btn.innerHTML='<span class="ld"></span>';}
+if(res)s(res,'wa','⏳ ...');
+var previewWindow=window.open('','_blank');
+var fd=new FormData();fd.append('action','lbl30_text');fd.append('content',txt.value.trim());fd.append('copies',copies);fd.append('font_size',font_size);
+try{var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();
+if(d.status==='ok'){
+if(res)s(res,'ok',d.message);
+if(d.url){
+if(previewWindow&&!previewWindow.closed){previewWindow.location.href=d.url;}
+else if(res){res.innerHTML='<div>'+escHtml(d.message)+'</div><a class="btn btn-green btn-sm" href="'+d.url+'" target="_blank" style="margin-top:6px;display:inline-block">在新窗口打开</a>';}
+}
+}else if(res){s(res,'er','❌ '+(d.message||'生成失败'));}
+}catch(e){if(res)s(res,'er','❌ '+e.message);if(previewWindow&&!previewWindow.closed){previewWindow.close();}}
+if(btn){btn.disabled=false;btn.textContent='生成标签';}
+}
+
+function changeLbl30Font(delta){
+var f=document.getElementById('lbl30_font');if(!f)return;
+var v=parseInt(f.value)||25;v=Math.max(8,Math.min(40,v+delta));f.value=v;
 }
 
 function go(a){var m={lbl100:['f1','b1','r1'],lbl30:['f2','b2','r2'],us:['f3','b3','r3'],ca:['f4','b4','r4'],rc:['f5','b5','r5']}[a];doPost(a,m[0],m[1],m[2])}

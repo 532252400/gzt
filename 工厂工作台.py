@@ -1,6 +1,15 @@
 import http.server, json, os, re, winreg, urllib.parse, io, webbrowser, sys, threading, time
 import urllib.request, socket, sqlite3, datetime
 import qrcode
+PREVIEW_CACHE = {}
+def add_preview(html):
+    pid = str(int(time.time()*1000000)) + '_' + str(len(PREVIEW_CACHE))
+    PREVIEW_CACHE[pid] = (html, time.time())
+    now = time.time()
+    for k in list(PREVIEW_CACHE.keys()):
+        if now - PREVIEW_CACHE[k][1] > 3600:
+            PREVIEW_CACHE.pop(k, None)
+    return pid
 
 # ====== 数据库 ======
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_scan_data.db')
@@ -429,6 +438,9 @@ def box_check_code(bid, code, worker, region):
         conn.close(); return {'result':'shipped','message':'该批次已发货，不再接收扫码','stats':get_box_stats(bid),'locks':{}}
     if not region:
         conn.close(); return {'result':'error','message':'请先选择区域','stats':get_box_stats(bid),'history':[],'locks':{}}
+    if len(code) != 19:
+        conn.close()
+        return {'result':'bad_length','message':'条码少扫或漏扫，请重新扫描','code':code,'stats':get_box_stats(bid, region),'history':[],'locks':get_box_locks(bid)}
     c.execute('SELECT reason FROM box_locks WHERE batch_id=? AND region=?', (bid, region))
     lock_row = c.fetchone()
     if lock_row:
@@ -1021,6 +1033,9 @@ async function checkBox(){
     playError();
     r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">放错区域</div><div class="d">'+esc(d.code)+'<br>'+esc(d.message)+'<br>请把该箱放回正确区域后，点击下方绿色按钮</div>';
     wrongLock={code:d.code||code};
+  }else if(d.result==='bad_length'){
+    playError();
+    r.className='r dup';r.innerHTML='<div class="ico">⚠️</div><div class="s">条码不完整</div><div class="d">'+esc(d.code)+'<br>可能少扫或漏扫，请重新扫描</div>';
   }else if(d.result==='not_found'){
     playError();
     r.className='r bad';r.innerHTML='<div class="ico">❓</div><div class="s">清单中无此箱码</div><div class="d">'+esc(d.code)+'<br>请联系管理员处理</div>';
@@ -1369,7 +1384,7 @@ async function resolveAbnormal(region){
   var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();alert(d.status==='ok'?'✅ '+d.message:('❌ '+(d.message||'')));loadItems();
 }
 var qrUrlText='';
-function setQrUrl(){qrUrlText='https://gz.mumugzt.com/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;}
+function setQrUrl(){var host=(location.hostname||'').toLowerCase();if(host==='gz.mumugzt.com'){qrUrlText='https://gz.mumugzt.com/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;return;}fetch('/get_ip').then(function(r){return r.json()}).then(function(d){var ip=(d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1');qrUrlText='http://'+ip+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;}).catch(function(){qrUrlText='http://'+(location.hostname||'127.0.0.1')+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;});}
 function openQr(){document.getElementById('qrModal').style.display='flex';}
 function closeQr(){document.getElementById('qrModal').style.display='none';}
 function copyQrUrl(){if(!qrUrlText){setQrUrl();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(qrUrlText).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+qrUrlText);});}else{alert('复制失败，请手动复制：'+qrUrlText);}}
@@ -1576,20 +1591,25 @@ function autoRefresh(){loadJobs();setTimeout(autoRefresh,2000);}
 		function showQR(){
 		    var self=this;
 		    fetch('/get_ip').then(function(r){return r.json()}).then(function(d){
-		        var url='https://gz.mumugzt.com/workshop';
+		        var url='http://'+((d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1'))+':'+location.port+'/workshop';
 		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
 		        document.getElementById('qrModal').style.display='flex';
 		    }).catch(function(){
-		        var url='https://gz.mumugzt.com/workshop';
+		        var url='http://'+(location.hostname||'127.0.0.1')+':'+location.port+'/workshop';
 		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
 		        document.getElementById('qrModal').style.display='flex';
 		    });
 		}
 		function downloadQR(){
-		    var url='https://gz.mumugzt.com/workshop';
-		    var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
-		}
-		</script>
+    fetch('/get_ip').then(function(r){return r.json()}).then(function(d){
+        var url='http://'+((d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1'))+':'+location.port+'/workshop';
+        var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
+    }).catch(function(){
+        var url='http://'+(location.hostname||'127.0.0.1')+':'+location.port+'/workshop';
+        var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
+    });
+}
+</script>
 		
 	<div class="ov" id="qrModal" style="display:none" onclick="this.style.display='none'"><div class="bx" style="text-align:center" onclick="event.stopPropagation()"><h3 style="margin-bottom:10px">📱 手机端扫码打开</h3><img id="qrImg" src="" style="width:200px;height:200px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin-bottom:10px"><br><button class="btn-s" onclick="downloadQR()">⬇ 下载二维码</button><button onclick="document.getElementById('qrModal').style.display='none'" style="background:#e2e8f0;padding:6px 14px;border:none;border-radius:6px;margin-left:6px;cursor:pointer">关闭</button></div></div>
 		</body></html>'''
@@ -2671,13 +2691,24 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self._html(PACKING_PAGE)
         if p == '/cards': return self._html(CARDS_PAGE)
         if p == '/pt': return self._html(POST_TEST_PAGE)
+        if p.startswith('/label_preview'):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(p).query)
+            pid = q.get('id',[''])[0]
+            entry = PREVIEW_CACHE.get(pid)
+            if entry:
+                return self._html(entry[0])
+            return self._html('<meta charset="utf-8"><h2>预览不存在或已过期</h2>')
         if p == '/box_scan': return self._html(BOX_SCAN_PAGE)
         if p == '/box_admin': return self._html(BOX_ADMIN_PAGE)
         if p == '/box_scan_qr':
             ip = get_ip()
             if not ip or ip == 'localhost':
                 ip = self.headers.get('Host', '').split(':')[0] or '127.0.0.1'
-            url = 'https://gz.mumugzt.com/box_scan'
+            host = self.headers.get('Host','').split(':')[0]
+            if host == 'gz.mumugzt.com':
+                url = 'https://gz.mumugzt.com/box_scan'
+            else:
+                url = 'http://' + ip + ':' + str(PORT) + '/box_scan'
             try:
                 qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
                 qr.add_data(url); qr.make(fit=True)
@@ -3291,7 +3322,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # Debug logging
             print(f'[DEBUG] POST action=\"{action}\" fname=\"{fname}\" fdata_size={len(fdata) if fdata else 0} parts={len(parts)}', flush=True)
             # Non-upload actions don't need a file
-            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal', 'box_resolve_duplicate'):
+            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal', 'box_resolve_duplicate', 'lbl30_text'):
                 pass  # handle below
             elif not fdata or not fname:
                 return self._json({'status':'error','message':'No file'})
@@ -3433,7 +3464,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 ip = get_ip()
                 region_info = '\n区域：' + ('、'.join(sorted(regions)) if regions else '无')
                 skip_info = '\n已跳过无货件单号行：'+str(skipped_rows)+'行（通常为小计/合计行）' if skipped_rows else ''
-                return self._json({'status':'ok','message':'✅ 箱码批次已导入\n批次：'+batch_name+'\n共展开 '+str(cnt)+' 个箱码'+region_info+skip_info+'\n\n📱 手机扫码：https://gz.mumugzt.com/box_scan\n📊 管理后台：https://gz.mumugzt.com/box_admin'})
+                return self._json({'status':'ok','message':'✅ 箱码批次已导入\n批次：'+batch_name+'\n共展开 '+str(cnt)+' 个箱码'+region_info+skip_info+'\n\n📱 手机扫码：http://'+ip+':'+str(PORT)+'/box_scan\n📊 管理后台：http://'+ip+':'+str(PORT)+'/box_admin'})
             if action == 'box_ship':
                 bid = int(batch_name) if batch_name.isdigit() else 0
                 if bid:
@@ -3554,10 +3585,25 @@ class H(http.server.BaseHTTPRequestHandler):
                     return self._json({'status':'ok','message':'已删除加工完成记录'})
                 return self._json({'status':'error','message':'参数错误'})
             print(f'[POST] dispatching action={action}', flush=True)
+            if action == 'lbl30_text':
+                content = self._get_post('content', '').strip()
+                copies = self._get_post('copies', '1')
+                font_size = self._get_post('font_size', '25')
+                if not content:
+                    return self._json({'status':'error','message':'\u8bf7\u8f93\u5165\u6807\u7b7e\u5185\u5bb9'})
+                out = run_lbl30_text(content, copies, font_size)
+                return self._json({'status':'ok','message':out.get('message',''),'url':out.get('url','')})
             func = {'lbl100':run_lbl100,'lbl30':run_lbl30,'us':run_us,'ca':run_ca,'rc':run_rc}.get(action)
             if func:
                 print(f'[DEBUG] Calling {action} with save_path={save_path}', flush=True)
-                res = func(save_path)
+                if action == 'lbl100':
+                    label_code = self._get_post('label_code', '').strip()
+                    save_to_desktop = self._get_post('save_to_desktop', '0') == '1'
+                    out = run_lbl100(save_path, label_code, save_to_desktop)
+                    print(f'[DEBUG] {action} completed successfully', flush=True)
+                    return self._json({'status':'ok','message':out.get('message',''),'url':out.get('url','')})
+                else:
+                    res = func(save_path)
                 print(f'[DEBUG] {action} completed successfully', flush=True)
                 self._json({'status':'ok','message':res})
             else:
@@ -3639,7 +3685,7 @@ def extract_name(name):
             return orig, None
     return name.replace('.xlsx',''), None
 
-def run_lbl100(fp):
+def run_lbl100(fp, label_code='', save_to_desktop=False):
     import openpyxl; from collections import defaultdict
     wb = openpyxl.load_workbook(fp); ws = wb.active
     bn = os.path.basename(fp); nc,fd = extract_name(bn)
@@ -3678,20 +3724,30 @@ def run_lbl100(fp):
     tb = len(boxes); ts = sum((len(v)+5)//6 for v in boxes.values())
     sp = [(b,len(boxes[b]),(len(boxes[b])+5)//6) for b in sorted(boxes.keys()) if (len(boxes[b])+5)//6>1]
     lh = ''
+    label_code = (label_code or '').strip()
+    def esc_html(x):
+        return (x or '').replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+    label_code_disp = ('<span class="lc">'+esc_html(label_code)+'</span> ' if label_code else '')
     for idx,bn_ in enumerate(sorted(boxes.keys()),1):
         for ps in range(0, len(boxes[bn_]), 6):
             ch = boxes[bn_][ps:ps+6]
-            lh += '<div class="l"><div class="bh">(\u7b2c'+str(idx)+'\u7bb1/\u603b'+str(tb)+'\u7bb1)</div><table><tr><th>\u54c1\u540d</th><th>\u578b\u53f7</th><th>\u5305\u6570</th><th>\u5355\u5305\u6570\u91cf</th><th>\u91c7\u8d2d\u91cf</th><th>\u7bb1\u53f7</th></tr>'
+            lh += '<div class="l"><div class="bh">'+label_code_disp+'(\u7b2c'+str(idx)+'\u7bb1/\u603b'+str(tb)+'\u7bb1)</div><table><tr><th>\u54c1\u540d</th><th>\u578b\u53f7</th><th>\u5305\u6570</th><th>\u5355\u5305\u6570\u91cf</th><th>\u91c7\u8d2d\u91cf</th><th>\u7bb1\u53f7</th></tr>'
             for sku,name,model,pk,qty,total in ch:
                 lh += '<tr><td style="font-size:12px">'+name+'</td><td style="font-size:10px">'+model+'</td><td style="font-size:12px;text-align:center">'+pk+'</td><td style="font-size:12px;text-align:center">'+qty+'</td><td style="font-size:12px;text-align:center">'+total+'</td><td style="font-size:12px;text-align:center">'+str(idx)+'</td></tr>'
             lh += '</table></div>'
     s = '<style>@page{size:100mm 100mm;margin:0}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;margin:0;padding:0}.l{width:100mm;height:100mm;padding:1.5mm;page-break-after:always;overflow:hidden;display:flex;flex-direction:column}.l:last-child{page-break-after:auto}.bh{text-align:center;font-weight:bold;font-size:11px;padding:1mm 0}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{padding:0.8mm 0.5mm;border:0.7px solid #000;line-height:1.15;word-break:break-all}th{font-size:9px;text-align:center}th:nth-child(1),td:nth-child(1){width:34%}th:nth-child(2),td:nth-child(2){width:17%}th:nth-child(3),td:nth-child(3){width:10%}th:nth-child(4),td:nth-child(4){width:12%}th:nth-child(5),td:nth-child(5){width:12%}th:nth-child(6),td:nth-child(6){width:15%}.np{text-align:center;padding:8px;background:#fff3cd;border-bottom:2px solid #ffc107}@media print{.np{display:none}}</style>'
     html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>'+nc+'\u6807\u7b7e</title>'+s+'</head><body><div class="np"><strong>'+nc+'\u6807\u7b7e</strong> | 10x10cm | '+str(ts)+'\u5f20 | <button onclick="window.print()" style="font-size:15px;padding:5px 18px">\u6253\u5370</button></div>'+lh+'</body></html>'
-    fout = os.path.join(DESKTOP, datetime.datetime.now().strftime('%m-%d').lstrip('0').replace('-0','-')+'-\u6807\u7b7e-'+nc+'.html')
-    with open(fout,'w',encoding='utf-8') as f: f.write(html)
-    msg = '\u2705 '+nc+' \u5171 '+str(ts)+' \u5f20\n\u6587\u4ef6\uff1a'+fout
-    if sp: msg += '\n\u62c6\u7bb1\uff1a'+', '.join(['\u7bb1'+str(b)+'('+str(c)+'\u6b3e\u2192'+str(p)+'\u5f20)' for b,c,p in sp])
-    return msg
+    preview_id = add_preview(html)
+    preview_url = '/label_preview?id=' + preview_id
+    msg = '✅ '+nc+' 共 '+str(ts)+' 张'
+    if save_to_desktop:
+        fout = os.path.join(DESKTOP, datetime.datetime.now().strftime('%m-%d').lstrip('0').replace('-0','-')+'-标签-'+nc+'.html')
+        with open(fout,'w',encoding='utf-8') as f: f.write(html)
+        msg += '\n文件：'+fout
+    else:
+        msg += '\n已在新窗口打开（未保存到桌面）'
+    if sp: msg += '\n拆箱：'+', '.join(['箱'+str(b)+'('+str(c)+'款→'+str(p)+'张)' for b,c,p in sp])
+    return {'message': msg, 'url': preview_url}
 
 def run_lbl30(fp):
     import openpyxl
@@ -3715,6 +3771,32 @@ def run_lbl30(fp):
     fout = os.path.join(DESKTOP, datetime.datetime.now().strftime('%m-%d').lstrip('0').replace('-0','-')+'-\u6807\u7b7e-\u63d0\u8d27\u4fe1\u606f.html')
     with open(fout,'w',encoding='utf-8') as f: f.write(html)
     return '\u2705 '+str(num)+'\u5f20\u6807\u7b7e\uff0c'+str(pages)+'\u9875\n\u6587\u4ef6\uff1a'+fout
+
+def run_lbl30_text(content, copies=1, font_size=25):
+    try:
+        copies = max(1, min(int(copies), 100))
+    except Exception:
+        copies = 1
+    try:
+        font_size = max(8, min(int(font_size), 40))
+    except Exception:
+        font_size = 25
+    esc = lambda s: str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+    label_html = '<div class="l"><div class="txt">'+esc(content)+'</div></div>'
+    pages = (copies + 1) // 2
+    lbs = ''
+    for pi in range(pages):
+        slots = []
+        for k in range(2):
+            if pi * 2 + k < copies:
+                slots.append(label_html)
+            else:
+                slots.append('<div class="l"></div>')
+        lbs += '<div class="p">'+''.join(slots)+'</div>'
+    s = '<style>@page{size:100mm 30mm;margin:0}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;margin:0;padding:0}.p{width:100mm;height:30mm;display:flex;page-break-after:always}.p:last-child{page-break-after:auto}.l{width:50mm;height:30mm;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:0 2mm;overflow:hidden;text-align:center}.txt{font-size:'+str(font_size)+'px;font-weight:bold;line-height:1.25;word-break:break-all}.np{text-align:center;padding:8px;background:#fff3cd;border-bottom:2px solid #ffc107}@media print{.np{display:none}}</style>'
+    html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>\u624b\u8f93\u63d0\u8d27\u6807\u7b7e</title>'+s+'</head><body><div class="np"><strong>\u624b\u8f93\u63d0\u8d27\u6807\u7b7e</strong> | 50x30mm\u53cc\u6392 | '+str(copies)+'\u5f20 / '+str(pages)+'\u9875 | <button onclick="window.print()" style="font-size:15px;padding:5px 18px">\u6253\u5370</button></div>'+lbs+'</body></html>'
+    pid = add_preview(html)
+    return {'message': '\u2705 \u5df2\u751f\u6210 '+str(copies)+' \u5f20 50\u00d730 \u624b\u8f93\u6807\u7b7e\uff08'+str(pages)+'\u9875\uff09', 'url': '/label_preview?id='+pid}
 
 def run_us(fp):
     import openpyxl; from collections import OrderedDict,defaultdict
