@@ -33,7 +33,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS box_scans (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, code TEXT, worker TEXT, result TEXT, region TEXT, note TEXT, scanned_at TEXT)''')
     try: c.execute('ALTER TABLE box_scans ADD COLUMN resolved INTEGER DEFAULT 0')
     except: pass
-    try: c.execute('ALTER TABLE box_scans ADD COLUMN resolved_at TEXT')
+    try: c.execute("ALTER TABLE box_scans ADD COLUMN resolved_at TEXT")
     except: pass
     c.execute('''CREATE TABLE IF NOT EXISTS box_locks (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, region TEXT, reason TEXT, created_at TEXT, UNIQUE(batch_id, region))''')
     c.execute('''CREATE TABLE IF NOT EXISTS box_events (id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id INTEGER, region TEXT, event_type TEXT, code TEXT, worker TEXT, note TEXT, created_at TEXT)''')
@@ -851,7 +851,6 @@ function renderStats(rs){
   if(!rs)rs={expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};
   document.getElementById('tiles').innerHTML='<div class="tile" data-view="all"><b>'+rs.expected+'</b><span>应扫</span></div><div class="tile ok" data-view="scanned"><b>'+rs.scanned+'</b><span>已扫</span></div><div class="tile" data-view="pending"><b>'+rs.remaining+'</b><span>剩余</span></div><div class="tile warn" data-view="abnormal"><b>'+(rs.wrong+rs.not_found+rs.duplicate)+'</b><span>异常</span></div>';
 }
-function fmtScanTime(t){ if(!t) return ''; var y=t.substr(0,10); var now=new Date(); var z=function(n){return (n<10?'0':'')+n}; var today=now.getFullYear()+'-'+z(now.getMonth()+1)+'-'+z(now.getDate()); return y===today ? t.substr(11,8) : t.substr(5,11); }
 async function openItems(view){
   if(!currentBatch){alert('请先选择批次');return}
   var rg=currentRegion();if(!rg){alert('请先选择区域');return}
@@ -867,9 +866,10 @@ async function openItems(view){
 function intervalSec(a,b){if(!a||!b)return null;var t1=new Date(a.replace(' ','T')),t2=new Date(b.replace(' ','T'));if(isNaN(t1)||isNaN(t2))return null;var d=Math.floor((t2-t1)/1000);return d<0?-d:d;}
 function fmtInterval(a,b){var d=intervalSec(a,b);if(d===null)return '--';if(d<60)return d+'\u79d2';var m=Math.floor(d/60);return m+'\u5206'+(d%60)+'\u79d2';}
 function closeItems(){document.getElementById('itemsPanel').style.display='none'}
+function fmtScanTime(t){ if(!t) return ''; var y=t.substr(0,10); var now=new Date(); var z=function(n){return (n<10?'0':'')+n}; var today=now.getFullYear()+'-'+z(now.getMonth()+1)+'-'+z(now.getDate()); return y===today ? t.substr(11,8) : t.substr(5,11); }
 function renderMobileItems(items, view){
   var body=document.getElementById('itemsBody');
-  if(!items||!items.length){body.innerHTML='<div class="items-empty">暂无数据</div>';return}
+  if(!items||!items.length){body.innerHTML='<div class="items-empty">\u6682\u65e0\u6570\u636e</div>';return}
   var html='';
   items.forEach(function(it){
     if(view==='abnormal'){
@@ -888,22 +888,22 @@ function renderMobileItems(items, view){
       html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+(it.scanned_at?esc(it.scanned_at.substr(5,11)):'')+'</div></div>';
     }else if(view==='pending'){
       html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div>';
-      if(it.fba)html+='<div class="sub loc">同码：'+esc(it.fba)+' 共'+it.same_total+'箱，已扫'+it.same_scanned+'箱</div>';
-      if(it.same_prev)html+='<div class="sub loc">同码上一箱：'+esc(it.same_prev.code)+'（第'+it.same_prev.pos+'箱）'+fmtScanTime(it.same_prev.time)+'</div>';
-      if(it.same_next)html+='<div class="sub loc">同码下一箱：'+esc(it.same_next.code)+'（第'+it.same_next.pos+'箱）'+fmtScanTime(it.same_next.time)+'</div>';
-      var loc='预计位置：无法按已扫顺序定位';
+      if(it.fba)html+='<div class="sub loc">\u540c\u7801\uff1a'+esc(it.fba)+' \u5171'+it.same_total+'\u7bb1\uff0c\u5df2\u626b'+it.same_scanned+'\u7bb1</div>';
+      if(it.same_prev)html+='<div class="sub loc">\u540c\u7801\u4e0a\u4e00\u7bb1\uff1a'+esc(it.same_prev.code)+'\uff08\u7b2c'+it.same_prev.pos+'\u7bb1\uff09'+fmtScanTime(it.same_prev.time)+'</div>';
+      if(it.same_next)html+='<div class="sub loc">\u540c\u7801\u4e0b\u4e00\u7bb1\uff1a'+esc(it.same_next.code)+'\uff08\u7b2c'+it.same_next.pos+'\u7bb1\uff09'+fmtScanTime(it.same_next.time)+'</div>';
+      var loc='\u9884\u8ba1\u4f4d\u7f6e\uff1a\u65e0\u6cd5\u6309\u5df2\u626b\u987a\u5e8f\u5b9a\u4f4d';
       if(it.estimated&&it.estimated.pos){
-        if(it.estimated.start&&it.estimated.end&&it.estimated.start!==it.estimated.end){loc='预计位置：已扫第 '+it.estimated.start+'～'+it.estimated.end+' 箱之间';}
-        else{loc='预计位置：已扫第 '+it.estimated.pos+' 箱附近';}
+        if(it.estimated.start&&it.estimated.end&&it.estimated.start!==it.estimated.end){loc='\u9884\u8ba1\u4f4d\u7f6e\uff1a\u5df2\u626b\u7b2c '+it.estimated.start+'\uff5e'+it.estimated.end+' \u7bb1\u4e4b\u95f4';}
+        else{loc='\u9884\u8ba1\u4f4d\u7f6e\uff1a\u5df2\u626b\u7b2c '+it.estimated.pos+' \u7bb1\u9644\u8fd1';}
       }
       html+='<div class="sub loc">'+esc(loc)+'</div>';
       if(!it.using_same){
-        if(it.prev)html+='<div class="sub loc">前面已扫：'+esc(it.prev.code)+'（第'+it.prev.pos+'箱）'+fmtScanTime(it.prev.time)+'</div>';
-        if(it.next)html+='<div class="sub loc">后面已扫：'+esc(it.next.code)+'（第'+it.next.pos+'箱）'+fmtScanTime(it.next.time)+'</div>';
+        if(it.prev)html+='<div class="sub loc">\u524d\u9762\u5df2\u626b\uff1a'+esc(it.prev.code)+'\uff08\u7b2c'+it.prev.pos+'\u7bb1\uff09'+fmtScanTime(it.prev.time)+'</div>';
+        if(it.next)html+='<div class="sub loc">\u540e\u9762\u5df2\u626b\uff1a'+esc(it.next.code)+'\uff08\u7b2c'+it.next.pos+'\u7bb1\uff09'+fmtScanTime(it.next.time)+'</div>';
       }
       html+='</div>';
     }else{
-      html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+esc(it.status==='scanned'?'已扫':'未扫')+'</div></div>';
+      html+='<div class="item-row"><div class="code">'+esc(it.code)+'</div><div class="sub">'+esc(it.status==='scanned'?'\u5df2\u626b':'\u672a\u626b')+'</div></div>';
     }
   });
   body.innerHTML=html;
@@ -952,7 +952,7 @@ function renderRegionBoardMobile(){
 function renderScanList(history){
   var sl=document.getElementById('scanList');
   if(history&&history.length){
-        sl.innerHTML='<b>⏱ 最近扫码</b>'+history.map(function(h){var t=(h.time||'').substr(11,8);var isDup=h.dup||h.result==='duplicate';var m=h.result==='correct'?(isDup?'⚠️':'✅'):(h.result==='duplicate'?'⚠️':'❌');return '<div class="'+(isDup?'dup-row':'')+'">'+t+' '+esc(h.code)+' '+m+'</div>'}).join('');
+    sl.innerHTML='<b>⏱ 最近扫码</b>'+history.map(function(h){var t=(h.time||'').substr(11,8);var isDup=h.dup||h.result==='duplicate';var m=h.result==='correct'?(isDup?'⚠️':'✅'):(h.result==='duplicate'?'⚠️':'❌');return '<div class="'+(isDup?'dup-row':'')+'">'+t+' '+esc(h.code)+' '+m+'</div>'}).join('');
   }else{sl.innerHTML=''}
 }
 async function refreshRegionHistory(){
@@ -990,7 +990,7 @@ async function loadInfo(bid){
     renderRegionStats();
   renderRegionBoardMobile();
     refreshLockUI();
-  refreshRegionHistory();
+    refreshRegionHistory();
     focusCode();
   }catch(e){
     document.getElementById('batchInfo').textContent='加载失败，请检查网络后点刷新';
@@ -1015,14 +1015,14 @@ async function checkBox(){
   try{
     d=await fetchJSON('/box_check?batch='+currentBatch.id+'&code='+encodeURIComponent(code)+'&region='+encodeURIComponent(rg));
   }catch(e){
-    r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">网络连接失败</div><div class="d">请确认手机和电脑在同一 WiFi，然后点刷新</div>';
+    r.className='r bad';r.innerHTML='<div class="ico">\u274c</div><div class="s">\u7f51\u7edc\u8fde\u63a5\u5931\u8d25</div><div class="d">\u8bf7\u786e\u8ba4\u624b\u673a\u548c\u7535\u8111\u5728\u540c\u4e00 WiFi\uff0c\u7136\u540e\u70b9\u5237\u65b0</div>';
     playError();
     document.getElementById('codeInput').blur();
     return;
   }
   if(d.result==='correct'){
     playOk();
-    r.className='r good';r.innerHTML='<div class="ico">✅</div><div class="s">正确</div><div class="d">'+esc(d.code)+'<br>'+esc(d.message)+'</div>';
+    r.className='r good';r.innerHTML='<div class="ico">\u2705</div><div class="s">\u6b63\u786e</div><div class="d">'+esc(d.code)+'<br>'+esc(d.message)+'</div>';
     wrongLock={code:null};
   }else if(d.result==='duplicate'){
     playError();
@@ -1031,22 +1031,22 @@ async function checkBox(){
     wrongLock={code:null};
   }else if(d.result==='wrong_region'){
     playError();
-    r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">放错区域</div><div class="d">'+esc(d.code)+'<br>'+esc(d.message)+'<br>请把该箱放回正确区域后，点击下方绿色按钮</div>';
+    r.className='r bad';r.innerHTML='<div class="ico">\u274c</div><div class="s">\u653e\u9519\u533a\u57df</div><div class="d">'+esc(d.code)+'<br>'+esc(d.message)+'<br>\u8bf7\u628a\u8be5\u7bb1\u653e\u56de\u6b63\u786e\u533a\u57df\u540e\uff0c\u70b9\u51fb\u4e0b\u65b9\u7eff\u8272\u6309\u94ae</div>';
     wrongLock={code:d.code||code};
   }else if(d.result==='bad_length'){
     playError();
-    r.className='r dup';r.innerHTML='<div class="ico">⚠️</div><div class="s">条码不完整</div><div class="d">'+esc(d.code)+'<br>可能少扫或漏扫，请重新扫描</div>';
+    r.className='r dup';r.innerHTML='<div class="ico">\u26a0\ufe0f</div><div class="s">\u6761\u7801\u4e0d\u5b8c\u6574</div><div class="d">'+esc(d.code)+'<br>\u53ef\u80fd\u5c11\u626b\u6216\u6f0f\u626b\uff0c\u8bf7\u91cd\u65b0\u626b\u63cf</div>';
   }else if(d.result==='not_found'){
     playError();
-    r.className='r bad';r.innerHTML='<div class="ico">❓</div><div class="s">清单中无此箱码</div><div class="d">'+esc(d.code)+'<br>请联系管理员处理</div>';
+    r.className='r bad';r.innerHTML='<div class="ico">\u2753</div><div class="s">\u6e05\u5355\u4e2d\u65e0\u6b64\u7bb1\u7801</div><div class="d">'+esc(d.code)+'<br>\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u5904\u7406</div>';
     wrongLock={code:null};
   }else if(d.result==='locked'){
     playError();
-    r.className='r bad';r.innerHTML='<div class="ico">🔒</div><div class="s">区域已锁定</div><div class="d">'+esc(d.message||'请联系管理员解锁')+'</div>';
+    r.className='r bad';r.innerHTML='<div class="ico">\U0001f512</div><div class="s">\u533a\u57df\u5df2\u9501\u5b9a</div><div class="d">'+esc(d.message||'\u8bf7\u8054\u7cfb\u7ba1\u7406\u5458\u89e3\u9501')+'</div>';
     wrongLock={code:null};
   }else{
     playError();
-    r.className='r bad';r.innerHTML='<div class="ico">❌</div><div class="s">'+esc(d.message||'查询失败')+'</div>';
+    r.className='r bad';r.innerHTML='<div class="ico">\u274c</div><div class="s">'+esc(d.message||'\u67e5\u8be2\u5931\u8d25')+'</div>';
   }
   refreshLockUI();
   if(d.stats){
@@ -1335,7 +1335,7 @@ async function loadItems(){
       h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.result_label||'')+'</td><td>'+esc(i.region||'-')+'</td><td>'+(sc?sc.substr(0,16):'--')+'</td><td>'+(i.result_type==='duplicate'?(fc?fc.substr(0,16):'--'):'-')+'</td><td>'+(i.result_type==='duplicate'?gap:'-')+'</td><td>'+(i.result_type==='duplicate'?hint:'-')+'</td><td>'+(i.resolved_at?i.resolved_at.substr(0,16):'--')+'</td></tr>';
     });
   }
-  if(d.view==='wrong'){
+  else if(d.view==='wrong'){
     h='<tr><th>箱码</th><th>扫描区域</th><th>应属区域</th><th>扫码时间</th></tr>';
     if(!items.length)h+='<tr><td colspan="4" class="na">没有放错区域记录</td></tr>';
     items.forEach(function(i){h+='<tr><td style="font-family:monospace">'+esc(i.code)+'</td><td>'+esc(i.region||'-')+'</td><td>'+esc(i.expected_region||'-')+'</td><td>'+(i.scanned_at||'').substr(0,16)+'</td></tr>'});
@@ -1384,7 +1384,7 @@ async function resolveAbnormal(region){
   var r=await fetch('/run',{method:'POST',body:fd});var d=await r.json();alert(d.status==='ok'?'✅ '+d.message:('❌ '+(d.message||'')));loadItems();
 }
 var qrUrlText='';
-function setQrUrl(){var host=(location.hostname||'').toLowerCase();if(host==='gz.mumugzt.com'){qrUrlText='https://gz.mumugzt.com/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;return;}fetch('/get_ip').then(function(r){return r.json()}).then(function(d){var ip=(d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1');qrUrlText='http://'+ip+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;}).catch(function(){qrUrlText='http://'+(location.hostname||'127.0.0.1')+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;});}
+function setQrUrl(){fetch('/get_ip').then(function(r){return r.json()}).then(function(d){var ip=(d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1');qrUrlText='http://'+ip+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;}).catch(function(){qrUrlText='http://'+location.hostname+':'+location.port+'/box_scan';document.getElementById('qrUrl').textContent=qrUrlText;});}
 function openQr(){document.getElementById('qrModal').style.display='flex';}
 function closeQr(){document.getElementById('qrModal').style.display='none';}
 function copyQrUrl(){if(!qrUrlText){setQrUrl();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(qrUrlText).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+qrUrlText);});}else{alert('复制失败，请手动复制：'+qrUrlText);}}
@@ -1591,25 +1591,20 @@ function autoRefresh(){loadJobs();setTimeout(autoRefresh,2000);}
 		function showQR(){
 		    var self=this;
 		    fetch('/get_ip').then(function(r){return r.json()}).then(function(d){
-		        var url='http://'+((d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1'))+':'+location.port+'/workshop';
+		        var url='http://'+d.ip+':8932/workshop';
 		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
 		        document.getElementById('qrModal').style.display='flex';
 		    }).catch(function(){
-		        var url='http://'+(location.hostname||'127.0.0.1')+':'+location.port+'/workshop';
+		        var url=window.location.href;
 		        document.getElementById('qrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(url);
 		        document.getElementById('qrModal').style.display='flex';
 		    });
 		}
 		function downloadQR(){
-    fetch('/get_ip').then(function(r){return r.json()}).then(function(d){
-        var url='http://'+((d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1'))+':'+location.port+'/workshop';
-        var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
-    }).catch(function(){
-        var url='http://'+(location.hostname||'127.0.0.1')+':'+location.port+'/workshop';
-        var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
-    });
-}
-</script>
+		    var url=window.location.href;
+		    var a=document.createElement('a');a.href='https://api.qrserver.com/v1/create-qr-code/?size=500x500&data='+encodeURIComponent(url);a.download='workshop_qr.png';a.click();
+		}
+		</script>
 		
 	<div class="ov" id="qrModal" style="display:none" onclick="this.style.display='none'"><div class="bx" style="text-align:center" onclick="event.stopPropagation()"><h3 style="margin-bottom:10px">📱 手机端扫码打开</h3><img id="qrImg" src="" style="width:200px;height:200px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;margin-bottom:10px"><br><button class="btn-s" onclick="downloadQR()">⬇ 下载二维码</button><button onclick="document.getElementById('qrModal').style.display='none'" style="background:#e2e8f0;padding:6px 14px;border:none;border-radius:6px;margin-left:6px;cursor:pointer">关闭</button></div></div>
 		</body></html>'''
@@ -1872,8 +1867,8 @@ body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;c
 	.calc-res.ok{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;display:block}
 	.calc-res.err{background:#ffebee;border:1px solid #ef9a9a;color:#b71c1c;display:block}</style><script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script></head><body>
 		<div class="hd"><div class="hd-top">
-			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.3</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
-							<div class="people-bar"><span style="font-size:11px;color:#a0aec0">v1.3</span></div>
+			<div style="display:flex;align-items:center;gap:10px"><div><h1>🔧 车间看板 <span style="font-size:11px;color:#a0aec0;font-weight:400">v1.2</span></h1><div class="sub" id="batchInfo">加载中...</div></div></div>
+							<div class="people-bar"><span style="font-size:11px;color:#a0aec0">v1.2</span></div>
 		</div></div>
 		<div class="stats"><div class="stat-item gray"><div class="num" id="sTotal">0</div><div class="lbl">全部</div></div><div class="stat-item blue"><div class="num" id="sPending">0</div><div class="lbl">待处理</div></div><div class="stat-item orange"><div class="num" id="sProcessing">0</div><div class="lbl">加工中</div></div><div class="stat-item green"><div class="num" id="sToday">0</div><div class="lbl">今日完成</div></div><div class="stat-item red"><div class="num" id="sPriority">0</div><div class="lbl">⭐优先</div></div></div>
 				<div class="filter-bar"><button id="bf_all" class="on" onclick="setFilter('all')">📋 全部</button><button id="bf_pending" onclick="setFilter('pending')">⏸ 待处理</button><button id="bf_processing" onclick="setFilter('processing')">🔧 加工中</button><button id="bf_today" onclick="setFilter('today')">✅ 今日完成</button><button id="bf_history" onclick="setFilter('history')">📋 历史完成</button><button id="bf_priority" onclick="setFilter('priority')">⭐ 优先</button></div>
@@ -2704,11 +2699,7 @@ class H(http.server.BaseHTTPRequestHandler):
             ip = get_ip()
             if not ip or ip == 'localhost':
                 ip = self.headers.get('Host', '').split(':')[0] or '127.0.0.1'
-            host = self.headers.get('Host','').split(':')[0]
-            if host == 'gz.mumugzt.com':
-                url = 'https://gz.mumugzt.com/box_scan'
-            else:
-                url = 'http://' + ip + ':' + str(PORT) + '/box_scan'
+            url = 'http://' + ip + ':' + str(PORT) + '/box_scan'
             try:
                 qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
                 qr.add_data(url); qr.make(fit=True)
@@ -3080,6 +3071,7 @@ class H(http.server.BaseHTTPRequestHandler):
             items = []
             for i in c.fetchall():
                 item = {'id':i[0],'sku':i[1],'name':i[2],'qty':i[3],'customer':i[4],'notes':i[5],'status':i[6],'worker':i[7] or '','started':i[8] or '','completed':i[9] or '','done_qty':i[10] or 0,'priority':i[11] if i[11] else 0,'job_number':i[12] or '','paused_seconds':i[13] or 0,'abnormal_status':i[14] or ''}
+                # 用实际人数或默认人数来估算预计用时
                 if item['status'] == 'completed':
                     ab = job_abnormal_summary(item['qty'], item['worker'], item['started'], item['completed'], item['done_qty'], item['paused_seconds'])
                     eff = calc_effective_minutes(item['started'], item['completed'], item['paused_seconds'])
@@ -3101,7 +3093,6 @@ class H(http.server.BaseHTTPRequestHandler):
                     item['abnormal_labels'] = ab['labels']
                     item['abnormal_reasons'] = ab['reasons']
                     item['abnormal_label'] = ' | '.join(ab['labels'])
-                # 用实际人数或默认人数来估算预计用时
                 if item['worker']:
                     actual_worker = item['worker']
                 elif default_ppl > 0:
@@ -3284,7 +3275,6 @@ class H(http.server.BaseHTTPRequestHandler):
                         if not est or not est.get('rate'):
                             results.append({'sku':sku,'qty':qty,'ppl':ppl,'rate':'缺','hours':'缺预估','end_time':'缺预估'})
                             continue
-                        rate = est['rate']
                         hours = round(qty / (rate * 60 * ppl), 1)
                         now = datetime.datetime.now()
                         end = calc_end_time(now, qty / (rate * ppl))
@@ -3322,7 +3312,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # Debug logging
             print(f'[DEBUG] POST action=\"{action}\" fname=\"{fname}\" fdata_size={len(fdata) if fdata else 0} parts={len(parts)}', flush=True)
             # Non-upload actions don't need a file
-            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal', 'box_resolve_duplicate', 'lbl30_text'):
+            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal', 'box_resolve_duplicate', 'lbl30_text', 'lbl30_free', 'lbl100_text', 'lbl100_free'):
                 pass  # handle below
             elif not fdata or not fname:
                 return self._json({'status':'error','message':'No file'})
@@ -3593,6 +3583,31 @@ class H(http.server.BaseHTTPRequestHandler):
                     return self._json({'status':'error','message':'\u8bf7\u8f93\u5165\u6807\u7b7e\u5185\u5bb9'})
                 out = run_lbl30_text(content, copies, font_size)
                 return self._json({'status':'ok','message':out.get('message',''),'url':out.get('url','')})
+            if action == 'lbl100_text':
+                content = self._get_post('content', '').strip()
+                copies = self._get_post('copies', '1')
+                large_font = self._get_post('large_font', '60')
+                small_font = self._get_post('small_font', '33')
+                if not content:
+                    return self._json({'status':'error','message':'\u8bf7\u8f93\u5165\u6807\u7b7e\u5185\u5bb9'})
+                out = run_lbl100_text(content, large_font, small_font, copies)
+                return self._json({'status':'ok','message':out.get('message',''),'url':out.get('url','')})
+            if action == 'lbl100_free':
+                content = self._get_post('content', '')
+                copies = self._get_post('copies', '1')
+                font_size = self._get_post('font_size', '50')
+                if not content.strip():
+                    return self._json({'status':'error','message':'\u8bf7\u8f93\u5165\u6807\u7b7e\u5185\u5bb9'})
+                out = run_lbl100_free(content, font_size, copies)
+                return self._json({'status':'ok','message':out.get('message',''),'url':out.get('url','')})
+            if action == 'lbl30_free':
+                content = self._get_post('content', '')
+                copies = self._get_post('copies', '1')
+                font_size = self._get_post('font_size', '25')
+                if not content.strip():
+                    return self._json({'status':'error','message':'\u8bf7\u8f93\u5165\u6807\u7b7e\u5185\u5bb9'})
+                out = run_lbl30_free(content, font_size, copies)
+                return self._json({'status':'ok','message':out.get('message',''),'url':out.get('url','')})
             func = {'lbl100':run_lbl100,'lbl30':run_lbl30,'us':run_us,'ca':run_ca,'rc':run_rc}.get(action)
             if func:
                 print(f'[DEBUG] Calling {action} with save_path={save_path}', flush=True)
@@ -3797,6 +3812,79 @@ def run_lbl30_text(content, copies=1, font_size=25):
     html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>\u624b\u8f93\u63d0\u8d27\u6807\u7b7e</title>'+s+'</head><body><div class="np"><strong>\u624b\u8f93\u63d0\u8d27\u6807\u7b7e</strong> | 50x30mm\u53cc\u6392 | '+str(copies)+'\u5f20 / '+str(pages)+'\u9875 | <button onclick="window.print()" style="font-size:15px;padding:5px 18px">\u6253\u5370</button></div>'+lbs+'</body></html>'
     pid = add_preview(html)
     return {'message': '\u2705 \u5df2\u751f\u6210 '+str(copies)+' \u5f20 50\u00d730 \u624b\u8f93\u6807\u7b7e\uff08'+str(pages)+'\u9875\uff09', 'url': '/label_preview?id='+pid}
+
+def run_lbl100_text(content, large_font=60, small_font=33, copies=1):
+    try:
+        copies = max(1, min(int(copies), 100))
+    except Exception:
+        copies = 1
+    try:
+        large_font = max(12, min(int(large_font), 120))
+    except Exception:
+        large_font = 60
+    try:
+        small_font = max(8, min(int(small_font), 120))
+    except Exception:
+        small_font = 33
+    esc = lambda s: str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+    date_str = datetime.datetime.now().strftime('%Y%m%d')
+    one = '<div class="l100"><div class="line big">REX海外仓</div><div class="line big">'+esc(content)+'</div><div class="line small">'+date_str+'</div><div class="line small">Made in China</div></div>'
+    lbs = ''.join(one for _ in range(copies))
+    s = '<style>@page{size:100mm 100mm;margin:0}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;margin:0;padding:0}.l100{width:100mm;height:100mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8mm;text-align:center;page-break-after:always}.l100:last-child{page-break-after:auto}.line{line-height:1.2;word-break:break-all}.big{font-size:'+str(large_font)+'px;font-weight:bold;margin:2mm 0}.small{font-size:'+str(small_font)+'px;margin:1.5mm 0}.np{text-align:center;padding:8px;background:#fff3cd;border-bottom:2px solid #ffc107}@media print{.np{display:none}}</style>'
+    html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>\u624b\u8f93100x100\u6807\u7b7e</title>'+s+'</head><body><div class="np"><strong>\u624b\u8f93100x100\u6807\u7b7e</strong> | '+str(copies)+'\u5f20 | <button onclick="window.print()" style="font-size:15px;padding:5px 18px">\u6253\u5370</button></div>'+lbs+'</body></html>'
+    pid = add_preview(html)
+    return {'message': '\u2705 \u5df2\u751f\u6210 '+str(copies)+' \u5f20 100\u00d7100 \u624b\u8f93\u6807\u7b7e', 'url': '/label_preview?id='+pid}
+
+def run_lbl100_free(content, font_size=50, copies=1):
+    try:
+        copies = max(1, min(int(copies), 100))
+    except Exception:
+        copies = 1
+    try:
+        font_size = max(8, min(int(font_size), 72))
+    except Exception:
+        font_size = 50
+    esc = lambda s: str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+    lines = str(content).splitlines() or ['']
+    inner = ''
+    for line in lines:
+        inner += '<div class="fline">'+(esc(line) if line.strip() else '&nbsp;')+'</div>'
+    one = '<div class="l100"><div class="free">'+inner+'</div></div>'
+    lbs = ''.join(one for _ in range(copies))
+    s = '<style>@page{size:100mm 100mm;margin:0}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;margin:0;padding:0}.l100{width:100mm;height:100mm;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:8mm;text-align:center;page-break-after:always}.l100:last-child{page-break-after:auto}.free{width:100%}.fline{font-size:'+str(font_size)+'px;line-height:1.35;margin:1.2mm 0;word-break:break-all}.np{text-align:center;padding:8px;background:#fff3cd;border-bottom:2px solid #ffc107}@media print{.np{display:none}}</style>'
+    html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>\u81ea\u7531\u7f16\u8f91100x100\u6807\u7b7e</title>'+s+'</head><body><div class="np"><strong>\u81ea\u7531\u7f16\u8f91100x100\u6807\u7b7e</strong> | '+str(copies)+'\u5f20 | <button onclick="window.print()" style="font-size:15px;padding:5px 18px">\u6253\u5370</button></div>'+lbs+'</body></html>'
+    pid = add_preview(html)
+    return {'message': '\u2705 \u5df2\u751f\u6210 '+str(copies)+' \u5f20 100\u00d7100 \u81ea\u7531\u7f16\u8f91\u6807\u7b7e', 'url': '/label_preview?id='+pid}
+
+def run_lbl30_free(content, font_size=25, copies=1):
+    try:
+        copies = max(1, min(int(copies), 100))
+    except Exception:
+        copies = 1
+    try:
+        font_size = max(8, min(int(font_size), 40))
+    except Exception:
+        font_size = 25
+    esc = lambda s: str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+    lines = str(content).splitlines() or ['']
+    inner = ''
+    for line in lines:
+        inner += '<div class="fline">'+(esc(line) if line.strip() else '&nbsp;')+'</div>'
+    one = '<div class="l"><div class="free">'+inner+'</div></div>'
+    pages = (copies + 1) // 2
+    lbs = ''
+    for pi in range(pages):
+        slots = []
+        for k in range(2):
+            if pi * 2 + k < copies:
+                slots.append(one)
+            else:
+                slots.append('<div class="l"></div>')
+        lbs += '<div class="p">'+''.join(slots)+'</div>'
+    s = '<style>@page{size:100mm 30mm;margin:0}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;margin:0;padding:0}.p{width:100mm;height:30mm;display:flex;page-break-after:always}.p:last-child{page-break-after:auto}.l{width:50mm;height:30mm;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:0 2mm;overflow:hidden;text-align:center}.free{width:100%}.fline{font-size:'+str(font_size)+'px;line-height:1.3;margin:.8mm 0;word-break:break-all}.np{text-align:center;padding:8px;background:#fff3cd;border-bottom:2px solid #ffc107}@media print{.np{display:none}}</style>'
+    html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>\u81ea\u7531\u7f16\u8f9150x30\u6807\u7b7e</title>'+s+'</head><body><div class="np"><strong>\u81ea\u7531\u7f16\u8f9150x30\u6807\u7b7e</strong> | 50x30mm\u53cc\u6392 | '+str(copies)+'\u5f20 / '+str(pages)+'\u9875 | <button onclick="window.print()" style="font-size:15px;padding:5px 18px">\u6253\u5370</button></div>'+lbs+'</body></html>'
+    pid = add_preview(html)
+    return {'message': '\u2705 \u5df2\u751f\u6210 '+str(copies)+' \u5f20 50\u00d730 \u81ea\u7531\u7f16\u8f91\u6807\u7b7e\uff08'+str(pages)+'\u9875\uff09', 'url': '/label_preview?id='+pid}
 
 def run_us(fp):
     import openpyxl; from collections import OrderedDict,defaultdict
