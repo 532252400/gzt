@@ -502,6 +502,8 @@ def box_check_code(bid, code, worker, region):
 # 使服务器能重用TIME_WAIT状态的端口
 # allow_reuse_address removed - causes port stealing on Windows
 VERSION = 'v20260815'
+MANAGER_PASSWORD = '8888'
+CF_DOMAIN = 'https://gz.mumugzt.com'
 PORT = 8932
 for _ in range(20):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1197,7 +1199,7 @@ button{padding:8px 14px;border:none;border-radius:6px;font-size:13px;cursor:poin
 .act-unlock{background:#d93025;color:#fff}
 @media(max-width:700px){.tiles{grid-template-columns:repeat(3,1fr)}}
 </style></head><body>
-<div class="toprow"><h1>📦 箱码发货管理</h1><button class="b1 qrbtn" id="qrBtn" onclick="openQr()">📱 手机端二维码</button></div>
+<div class="toprow"><h1>📦 箱码发货管理</h1><button class="b1 qrbtn" id="qrBtn" onclick="openQr()">📱 手机端二维码</button><button class="b1 qrbtn" onclick="openManagerQr()">📋 管理端二维码</button></div>
 <div class="upbox"><div class="ut">上传发货汇总Excel（按货件单号+总箱数展开成每箱条码，批次名=完整文件名）</div><input type="file" id="boxFile" accept=".xlsx,.xls"><button class="b1" onclick="document.getElementById('boxFile').click()">📤 选择文件</button><span class="fn" id="boxFileName">未选择文件</span><button class="b3" id="boxUploadBtn" disabled onclick="uploadBox()">上传箱码批次</button><div class="upmsg" id="upmsg"></div></div>
 <div style="text-align:center;margin:4px 0 8px"><button class="b2" onclick="loadItems()">🔄 刷新</button></div>
 <div class="bar"><select id="batchSel" onchange="loadItems()"><option value="">选择批次...</option></select><button class="b2" id="shipBtn" onclick="shipBatch()">✅ 确认发货</button><button class="b4" id="deleteBtn" onclick="deleteBatch()">🗑 删除批次</button></div>
@@ -1209,7 +1211,8 @@ button{padding:8px 14px;border:none;border-radius:6px;font-size:13px;cursor:poin
 <div class="bar"><select id="regionSel" onchange="loadItems()"><option value="">全部区域</option></select><input id="q" placeholder="搜索箱码，如 FBA19L909LYXU000001" onkeydown="if(event.key==='Enter')loadItems()"><button class="b1" onclick="loadItems()">🔍 查询</button><button class="b3" onclick="loadItems()">🔄 刷新</button><button class="b3" id="clearViewBtn" style="display:none" onclick="setView('')">返回全部</button></div>
 <div style="overflow-x:auto"><table class="t" id="items"><tr><th>箱码</th><th>FBA号</th><th>箱号</th><th>区域</th><th>状态</th><th>扫码时间</th></tr></table></div>
 <p style="font-size:11px;color:#999;margin-top:10px"><a href="/">← 工作台</a> | <a href="/box_scan">📱 手机扫码</a></p>
-<div class="qrmodal" id="qrModal"><div class="qrmodal-box"><button class="qrmodal-close" onclick="closeQr()">×</button><div class="qrlabel">手机扫码打开手机端</div><img src="/box_scan_qr" alt="手机端二维码"><div class="qrurl" id="qrUrl"></div><div class="qrmodal-actions"><button class="b3" onclick="copyQrUrl()">复制链接</button><button class="b1" onclick="closeQr()">关闭</button></div></div></div>
+<div class="qrmodal" id="qrModal"><div class="qrmodal-box" style="width:360px;max-width:94vw"><button class="qrmodal-close" onclick="closeQr()">×</button><div class="qrlabel">手机扫码 · 两种方式登录</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><div style="flex:1;min-width:150px"><div style="font-size:12px;font-weight:600;color:#333;margin:4px 0">📶 WiFi 局域网</div><img src="/box_scan_qr" alt="WiFi二维码" style="width:130px;height:130px"><div class="qrurl" id="qrUrl"></div><button class="b3" onclick="copyQrUrl()">复制链接</button></div><div style="flex:1;min-width:150px"><div style="font-size:12px;font-weight:600;color:#333;margin:4px 0">🌐 外网 CF</div><img src="/box_scan_qr_cf" alt="CF二维码" style="width:130px;height:130px"><div class="qrurl" id="qrUrlCf"></div><button class="b3" onclick="copyQrUrlCf()">复制链接</button></div></div><div style="margin-top:8px"><button class="b1" onclick="closeQr()">关闭</button></div></div></div>
+<div class="qrmodal" id="managerQrModal"><div class="qrmodal-box" style="width:360px;max-width:94vw"><button class="qrmodal-close" onclick="closeManagerQr()">×</button><div class="qrlabel">管理端看板 · 两种方式登录</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><div style="flex:1;min-width:150px"><div style="font-size:12px;font-weight:600;color:#333;margin:4px 0">📶 WiFi 局域网</div><img src="/box_manager_qr" alt="WiFi二维码" style="width:130px;height:130px"><div class="qrurl" id="managerQrUrl"></div><button class="b3" onclick="copyManagerQrUrl()">复制链接</button></div><div style="flex:1;min-width:150px"><div style="font-size:12px;font-weight:600;color:#333;margin:4px 0">🌐 外网 CF</div><img src="/box_manager_qr_cf" alt="CF二维码" style="width:130px;height:130px"><div class="qrurl" id="managerQrUrlCf"></div><button class="b3" onclick="copyManagerQrUrlCf()">复制链接</button></div></div><div style="margin-top:8px"><button class="b1" onclick="closeManagerQr()">关闭</button></div></div></div>
 <script>
 var batches=[], cur=null, viewMode='';
 function fmtGap(sec){if(sec<0)sec=0;if(sec<60)return sec+'秒';var m=Math.floor(sec/60);return m+'分'+(sec%60)+'秒';}
@@ -1388,9 +1391,127 @@ function setQrUrl(){fetch('/get_ip').then(function(r){return r.json()}).then(fun
 function openQr(){document.getElementById('qrModal').style.display='flex';}
 function closeQr(){document.getElementById('qrModal').style.display='none';}
 function copyQrUrl(){if(!qrUrlText){setQrUrl();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(qrUrlText).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+qrUrlText);});}else{alert('复制失败，请手动复制：'+qrUrlText);}}
+var qrUrlTextCf='';
+function setQrUrlCf(){fetch('/get_cf_domain').then(function(r){return r.json()}).then(function(d){var dm=(d&&d.domain)?d.domain:'https://gz.mumugzt.com';qrUrlTextCf=dm.replace(/\/$/,'')+'/box_scan';document.getElementById('qrUrlCf').textContent=qrUrlTextCf;}).catch(function(){qrUrlTextCf='https://gz.mumugzt.com/box_scan';document.getElementById('qrUrlCf').textContent=qrUrlTextCf;});}
+function copyQrUrlCf(){if(!qrUrlTextCf){setQrUrlCf();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(qrUrlTextCf).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+qrUrlTextCf);});}else{alert('复制失败，请手动复制：'+qrUrlTextCf);}}
 document.getElementById('qrModal').addEventListener('click',function(e){if(e.target===this)closeQr();});
+var managerQrUrlText='';
+function setManagerQrUrl(){fetch('/get_ip').then(function(r){return r.json()}).then(function(d){var ip=(d&&d.ip&&d.ip!=='localhost')?d.ip:(location.hostname||'127.0.0.1');managerQrUrlText='http://'+ip+':'+location.port+'/box_manager';document.getElementById('managerQrUrl').textContent=managerQrUrlText;}).catch(function(){managerQrUrlText='http://'+location.hostname+':'+location.port+'/box_manager';document.getElementById('managerQrUrl').textContent=managerQrUrlText;});}
+function openManagerQr(){document.getElementById('managerQrModal').style.display='flex';}
+function closeManagerQr(){document.getElementById('managerQrModal').style.display='none';}
+function copyManagerQrUrl(){if(!managerQrUrlText){setManagerQrUrl();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(managerQrUrlText).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+managerQrUrlText);});}else{alert('复制失败，请手动复制：'+managerQrUrlText);}}
+var managerQrUrlTextCf='';
+function setManagerQrUrlCf(){fetch('/get_cf_domain').then(function(r){return r.json()}).then(function(d){var dm=(d&&d.domain)?d.domain:'https://gz.mumugzt.com';managerQrUrlTextCf=dm.replace(/\/$/,'')+'/box_manager';document.getElementById('managerQrUrlCf').textContent=managerQrUrlTextCf;}).catch(function(){managerQrUrlTextCf='https://gz.mumugzt.com/box_manager';document.getElementById('managerQrUrlCf').textContent=managerQrUrlTextCf;});}
+function copyManagerQrUrlCf(){if(!managerQrUrlTextCf){setManagerQrUrlCf();}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(managerQrUrlTextCf).then(function(){alert('✅ 链接已复制');},function(){alert('复制失败，请手动复制：'+managerQrUrlTextCf);});}else{alert('复制失败，请手动复制：'+managerQrUrlTextCf);}}
+document.getElementById('managerQrModal').addEventListener('click',function(e){if(e.target===this)closeManagerQr();});
+setManagerQrUrl();
+setManagerQrUrlCf();
 setQrUrl();
+setQrUrlCf();
 load();
+</script></body></html>'''
+
+# ====== 箱码管理手机端看板（管理员） ======
+BOX_MANAGER_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>箱码管理看板</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f0f2f5;color:#333;padding:12px;max-width:560px;margin:0 auto;padding-bottom:24px}
+.hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.hd h1{font-size:18px;flex:1}
+.hd button{padding:6px 10px;border:1px solid #d0d7de;border-radius:6px;background:#fff;font-size:12px;cursor:pointer}
+.sel{width:100%;padding:10px;border:2px solid #1a73e8;border-radius:8px;font-size:14px;background:#fff;margin-bottom:10px}
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.tile{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 4px;text-align:center}
+.tile b{display:block;font-size:20px;line-height:1.1}
+.tile span{font-size:10px;color:#888}
+.tile.ok b{color:#188038}.tile.warn b{color:#ea4335}
+.prog{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:10px}
+.progbar{height:12px;background:#edf2f7;border-radius:6px;overflow:hidden}
+.progfill{height:100%;background:linear-gradient(90deg,#38a169,#1a73e8);width:0;transition:width .3s}
+.proginfo{display:flex;justify-content:space-between;font-size:11px;color:#555;margin-top:5px;flex-wrap:wrap;gap:4px}
+.lockpanel{margin-bottom:10px;padding:10px;background:#fff7ed;border:1px solid #f6c945;border-radius:8px;font-size:13px;color:#975a16;display:none}
+.lockpanel .lk{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;flex-wrap:wrap}
+.lockpanel button{background:#d93025;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+.sec-t{font-size:13px;font-weight:bold;color:#555;margin:8px 0 6px}
+.regionboard{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.rcard{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px}
+.rcard.locked{border-color:#f6c945;background:#fffdf5}
+.rcard .rh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.rcard .rname{flex:1;font-size:15px;font-weight:bold;color:#1a73e8;word-break:break-all}
+.rstatus{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+.st-ok{background:#e6f4ea;color:#188038}.st-warn{background:#fef7e0;color:#b26a00}.st-run{background:#eef4ff;color:#1a73e8}.st-none{background:#f1f3f4;color:#888}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.m{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 4px;text-align:center;cursor:pointer}
+.m b{display:block;font-size:17px;line-height:1.1}
+.m span{font-size:10px;color:#888}
+.m.alert b,.m.alert span{color:#d93025}
+.m.zero b,.m.zero span{color:#b8bfc9}
+.mini{height:7px;background:#edf2f7;border-radius:4px;overflow:hidden;margin-bottom:8px}
+.mini i{display:block;height:100%;background:linear-gradient(90deg,#38a169,#1a73e8);width:0}
+.rsum{font-size:11px;color:#666;line-height:1.5}
+.resolvebtn{margin-top:8px;width:100%;background:#e6f4ea;color:#188038;border:1px solid #34a853;border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer}
+.unlockbtn{background:#d93025;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer}
+.na{text-align:center;color:#999;padding:30px;font-size:12px}
+.items-panel{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:flex-end;justify-content:center;z-index:60}
+.items-box{background:#fff;width:100%;max-width:560px;max-height:86vh;border-radius:14px 14px 0 0;padding:12px;display:flex;flex-direction:column}
+.items-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.items-hd h3{flex:1;font-size:15px}
+.items-hd button{border:none;background:#f1f3f4;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+.items-body{overflow-y:auto;flex:1}
+.item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px;margin-bottom:8px;font-size:12px}
+.item .code{font-family:monospace;font-weight:600;margin-bottom:3px;word-break:break-all}
+.item .sub{color:#666;font-size:11px;margin:2px 0}
+.item .sub.ok{color:#188038}
+.item .act{display:inline-block;margin-top:6px;background:#1a73e8;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer}
+.item .act.g{background:#188038}
+.item .act.y{background:#b26a00}
+.auth{position:fixed;inset:0;background:#f0f2f5;display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.auth-box{background:#fff;border-radius:14px;padding:24px;width:320px;max-width:100%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+.auth-box h2{font-size:18px;margin:10px 0 4px}
+.auth-box p{font-size:12px;color:#888;margin-bottom:14px}
+.auth-box input{width:100%;padding:11px;border:2px solid #1a73e8;border-radius:8px;font-size:18px;text-align:center;margin-bottom:12px}
+.auth-box input:focus{outline:none}
+.auth-box button{width:100%;padding:11px;border:none;border-radius:8px;background:#1a73e8;color:#fff;font-size:15px;cursor:pointer}
+.auth-err{color:#d93025;font-size:12px;margin-top:8px;min-height:16px}
+</style></head><body>
+<div class="auth" id="auth"><div class="auth-box"><div style="font-size:44px">🔐</div><h2>箱码管理看板</h2><p>请输入管理密码</p><input id="pwd" type="password" inputmode="numeric" placeholder="管理密码" onkeydown="if(event.key==='Enter')doLogin()"><button onclick="doLogin()">进入</button><div class="auth-err" id="authErr"></div></div></div>
+<div class="hd"><h1>📋 箱码管理看板</h1><button onclick="location.reload()">🔄 刷新</button><button onclick="doLogout()">🔒 退出</button></div>
+<select class="sel" id="batchSel" onchange="onBatchChange()"><option value="">加载中...</option></select>
+<div class="tiles" id="tiles"></div>
+<div class="prog"><div class="progbar"><div class="progfill" id="progFill"></div></div><div class="proginfo"><span id="progText">已扫 0 / 应有 0</span><span id="durText">扫码用时：--</span></div></div>
+<div class="lockpanel" id="lockPanel"></div>
+<div class="sec-t">各区域看板</div>
+<div class="regionboard" id="regionBoard"></div>
+<div class="items-panel" id="itemsPanel"><div class="items-box"><div class="items-hd"><h3 id="itemsTitle">明细</h3><button onclick="closeItems()">关闭</button></div><div class="items-body" id="itemsBody">加载中...</div></div></div>
+<script>
+var PWD='__MANAGER_PWD__';
+var curBatchId='', curRegion='', curView='', curResolvedOnly=false;
+function esc(s){if(s===null||s===undefined)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fetchJSON(url){return new Promise(function(resolve,reject){var ctrl=typeof AbortController!=='undefined'?new AbortController():null;var timer=setTimeout(function(){if(ctrl)ctrl.abort();reject(new Error('请求超时'));},8000);var opt=ctrl?{signal:ctrl.signal,cache:'no-store'}:{cache:'no-store'};fetch(url,opt).then(function(r){clearTimeout(timer);return r.json();}).then(resolve).catch(function(e){clearTimeout(timer);reject(e);});});}
+function fmtGap(sec){if(sec<0)sec=0;if(sec<60)return sec+'秒';var m=Math.floor(sec/60);return m+'分'+(sec%60)+'秒';}
+function dupHint(sec){return sec<=20?'20秒内，大概率是本卡板重复扫码':'超过20秒，可能是其他卡板重复或标签真的重复，请仔细检查';}
+function intervalSec(a,b){if(!a||!b)return null;var t1=new Date(a.replace(' ','T')),t2=new Date(b.replace(' ','T'));if(isNaN(t1)||isNaN(t2))return null;return Math.floor((t2-t1)/1000);}
+function doLogin(){var v=document.getElementById('pwd').value.trim();if(v===PWD){localStorage.setItem('box_manager_pwd','1');document.getElementById('auth').style.display='none';loadBatches();}else{document.getElementById('authErr').textContent='密码错误，请重试';}}
+function doLogout(){localStorage.removeItem('box_manager_pwd');location.reload();}
+function onBatchChange(){curBatchId=document.getElementById('batchSel').value;loadData();}
+async function loadBatches(){var d=await fetchJSON('/box_admin_data');var bs=d.batches||[];var sel=document.getElementById('batchSel');sel.innerHTML='';if(!bs.length){sel.innerHTML='<option value="">暂无批次</option>';renderEmpty();return;}bs.forEach(function(b){var o=document.createElement('option');o.value=b.id;o.textContent=b.name+(b.status==='shipped'?'（已发货）':'');sel.appendChild(o);});if(!curBatchId||!bs.some(function(b){return String(b.id)===String(curBatchId);})){curBatchId=bs[0].id;}sel.value=String(curBatchId);loadData();}
+function renderEmpty(){document.getElementById('tiles').innerHTML='';document.getElementById('regionBoard').innerHTML='<div class="na">暂无箱码批次</div>';document.getElementById('lockPanel').style.display='none';document.getElementById('progFill').style.width='0';document.getElementById('progText').textContent='已扫 0 / 应有 0';document.getElementById('durText').textContent='扫码用时：--';}
+async function loadData(){if(!curBatchId){renderEmpty();return;}var d=await fetchJSON('/box_admin_data?batch='+curBatchId);renderDashboard(d);}
+function renderStats(st){if(!st)st={expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};var abnormal=(Number(st.wrong||0)+Number(st.not_found||0)+Number(st.duplicate||0));document.getElementById('tiles').innerHTML='<div class="tile"><b>'+st.expected+'</b><span>应有箱数</span></div><div class="tile ok"><b>'+st.scanned+'</b><span>已扫</span></div><div class="tile"><b>'+st.remaining+'</b><span>剩余</span></div><div class="tile warn"><b>'+st.wrong+'</b><span>放错区域</span></div><div class="tile warn"><b>'+abnormal+'</b><span>异常扫码</span></div>';}
+function renderRegionBoard(d){var board=document.getElementById('regionBoard');board.innerHTML='';var regions=d.regions||[];var statsMap=d.region_stats||{};var locks=d.locks||{};regions.forEach(function(rg){var st=statsMap[rg]||{expected:0,scanned:0,remaining:0,wrong:0,not_found:0,duplicate:0};var lock=locks[rg]||null;var pct=st.expected?Math.round(st.scanned/st.expected*100):0;var wrong=Number(st.wrong||0),duplicate=Number(st.duplicate||0),notFound=Number(st.not_found||0);var errCount=wrong+duplicate+notFound;var resolved=Number(st.resolved_wrong||0)+Number(st.resolved_duplicate||0)+Number(st.resolved_not_found||0);var complete=(Number(st.scanned||0)>=Number(st.expected||0));var statusText,statusCls;if(complete&&errCount===0){statusText='✅ 已完成';statusCls='st-ok';}else if(complete&&errCount>0){statusText='⚠️ 有异常';statusCls='st-warn';}else if((Number(st.scanned||0)===0)&&errCount===0){statusText='⬜ 未开始';statusCls='st-none';}else{statusText='🔄 进行中';statusCls='st-run';}var card=document.createElement('div');card.className='rcard'+(lock?' locked':'');var rh=document.createElement('div');rh.className='rh';var nm=document.createElement('div');nm.className='rname';nm.textContent=rg;rh.appendChild(nm);var badge=document.createElement('span');badge.className='rstatus '+statusCls;badge.textContent=statusText;rh.appendChild(badge);if(lock){var ub=document.createElement('button');ub.type='button';ub.className='unlockbtn';var reason=lock.reason==='duplicate'?'重复扫码':(lock.reason==='not_found'?'清单无此码':lock.reason);ub.textContent='🔓 解锁 '+reason;ub.onclick=function(){unlockRegion(rg);};rh.appendChild(ub);}card.appendChild(rh);var metrics=document.createElement('div');metrics.className='metrics';var defs=[['expected','总箱数','',false],['scanned','已扫','',false],['remaining','剩余','',false],['wrong','放错区域','wrong',true],['duplicate','重复扫码','duplicate',true],['not_found','无此码','not_found',true]];defs.forEach(function(md){var key=md[0],label=md[1],view=md[2],alert=md[3];var val=Number(st[key]||0);var box=document.createElement('div');box.className='m'+(alert&&val>0?' alert':(alert?' zero':''));var b=document.createElement('b');b.textContent=val;var sp=document.createElement('span');sp.textContent=label;box.appendChild(b);box.appendChild(sp);if(view){box.onclick=function(){openItems(rg,view,false);};}metrics.appendChild(box);});card.appendChild(metrics);var mini=document.createElement('div');mini.className='mini';var fill=document.createElement('i');fill.style.width=pct+'%';mini.appendChild(fill);card.appendChild(mini);var summary=document.createElement('div');summary.className='rsum';if(complete&&errCount===0){summary.textContent='已完成，数量对应，无出错';}else if(complete&&errCount>0){summary.textContent='箱数已扫够，异常 '+errCount+' 条（放错 '+wrong+' / 重复 '+duplicate+' / 无此码 '+notFound+'）';}else{summary.textContent='进行中 '+st.scanned+'/'+st.expected+'，剩余 '+st.remaining+'，异常 '+errCount+' 条（放错 '+wrong+' / 重复 '+duplicate+' / 无此码 '+notFound+'）';}if(resolved>0){summary.textContent+='；已处理 '+resolved+' 条';}card.appendChild(summary);if(errCount>0){var rb=document.createElement('button');rb.type='button';rb.className='resolvebtn';rb.textContent='✅ 确认该区异常已处理';rb.onclick=function(){resolveRegionAbnormal(rg);};card.appendChild(rb);}if(resolved>0){var vw=document.createElement('button');vw.type='button';vw.className='resolvebtn';vw.style.background='#eef4ff';vw.style.color='#1a73e8';vw.style.borderColor='#1a73e8';vw.textContent='📋 查看已处理 '+resolved+' 条';vw.onclick=function(){openItems(rg,'resolved',true);};card.appendChild(vw);}board.appendChild(card);});}
+function renderDashboard(d){renderStats(d.stats);var pct=(d.stats&&d.stats.expected)?Math.round(d.stats.scanned/d.stats.expected*100):0;document.getElementById('progFill').style.width=pct+'%';document.getElementById('progText').textContent='已扫 '+d.stats.scanned+' / 应有 '+d.stats.expected+'（'+pct+'%）';var dur='扫码用时：'+(d.duration_text||'--');if(d.scan_first)dur+=' | 首次 '+d.scan_first.substr(11,8);if(d.scan_last)dur+=' | 最近 '+d.scan_last.substr(11,8);document.getElementById('durText').textContent=dur;renderRegionBoard(d);var lp=document.getElementById('lockPanel');lp.innerHTML='';var locks=d.locks||{};if(Object.keys(locks).length){lp.innerHTML='<b>🔒 区域锁定</b>';Object.keys(locks).forEach(function(rg){var reason=locks[rg].reason==='duplicate'?'重复扫码':(locks[rg].reason==='not_found'?'清单中无此码':locks[rg].reason);var lk=document.createElement('div');lk.className='lk';var sp=document.createElement('span');sp.textContent='🔒 '+rg+'（'+reason+'）';var ub=document.createElement('button');ub.type='button';ub.textContent='🔓 解锁';ub.onclick=function(){unlockRegion(rg);};lk.appendChild(sp);lk.appendChild(ub);lp.appendChild(lk);});lp.style.display='block';}else{lp.style.display='none';}}
+async function openItems(rg,view,resolvedOnly){if(!curBatchId)return;curRegion=rg;curView=view;curResolvedOnly=!!resolvedOnly;var titles={scanned:'已扫箱码',pending:'剩余箱码',wrong:'放错区域',duplicate:'重复扫码',not_found:'清单无此码',abnormal:'异常扫码',resolved:'已处理记录'};document.getElementById('itemsTitle').textContent=rg+' · '+(titles[view]||'明细');document.getElementById('itemsPanel').style.display='flex';document.getElementById('itemsBody').innerHTML='加载中...';try{if(view==='scanned'||view==='pending'){var d=await fetchJSON('/box_mobile_items?batch='+curBatchId+'&region='+encodeURIComponent(rg)+'&view='+view);renderScanItems(d.items||[],view);}else{var d2=await fetchJSON('/box_mobile_items?batch='+curBatchId+'&region='+encodeURIComponent(rg)+'&view=abnormal');renderAbnormalItems(d2.items||[],view,resolvedOnly);}}catch(e){document.getElementById('itemsBody').innerHTML='<div class="na">加载失败，请稍后重试</div>';}}
+function closeItems(){document.getElementById('itemsPanel').style.display='none';}
+function renderScanItems(items,view){var body=document.getElementById('itemsBody');if(!items.length){body.innerHTML='<div class="na">暂无数据</div>';return;}var h='';items.forEach(function(it){if(view==='scanned'){h+='<div class="item"><div class="code">'+esc(it.code)+'</div><div class="sub">'+(it.scanned_at||'').substr(0,16)+'</div></div>';}else{h+='<div class="item"><div class="code">'+esc(it.code)+'</div>'+(it.fba?'<div class="sub">FBA：'+esc(it.fba)+'</div>':'')+'</div>';}});body.innerHTML=h;}
+function renderAbnormalItems(items,view,resolvedOnly){var body=document.getElementById('itemsBody');var filtered=items.filter(function(it){if(view==='resolved')return it.resolved;if(view==='wrong')return it.result_type==='wrong_region';if(view==='duplicate')return it.result_type==='duplicate';if(view==='not_found')return it.result_type==='not_found';return true;});if(resolvedOnly&&view!=='resolved'){filtered=filtered.filter(function(it){return it.resolved;});}if(!filtered.length){body.innerHTML='<div class="na">暂无数据</div>';return;}var h='';filtered.forEach(function(it){h+='<div class="item"><div class="code">'+(it.result_type==='duplicate'?'⚠️ ':'')+esc(it.code)+'</div>';if(it.result_type==='wrong_region'){h+='<div class="sub">扫描区域：'+esc(curRegion||'-')+'</div><div class="sub">应属区域：'+esc(it.expected_region||'-')+'</div><div class="sub">时间：'+(it.scanned_at||'').substr(0,16)+'</div>';}else if(it.result_type==='duplicate'){var fc=it.first_correct_at||'',sc=it.scanned_at||'';var sec=intervalSec(fc,sc);var gap=sec===null?'--':fmtGap(sec);var hint=sec===null?'':dupHint(sec);h+='<div class="sub">首次正确：'+(fc?fc.substr(0,16):'--')+'</div><div class="sub">本次重复：'+(sc?sc.substr(0,16):'--')+'</div><div class="sub">间隔：'+gap+'</div><div class="sub">'+hint+'</div>';}else{h+='<div class="sub">'+esc(it.result_label||'')+'</div><div class="sub">时间：'+(it.scanned_at||'').substr(0,16)+'</div>';}if(it.resolved){h+='<div class="sub ok">✅ 已处理</div>';}else{if(it.result_type==='wrong_region'){h+='<button class="act g" data-act="wrong" data-code="'+esc(it.code)+'">✅ 已放回正确区域</button>';}else if(it.result_type==='duplicate'){h+='<button class="act" data-act="dup" data-id="'+it.record_id+'">✅ 已检查，继续扫码</button>';}else{h+='<button class="act y" data-act="nf" data-id="'+it.record_id+'">✅ 标记已处理</button>';}}h+='</div>';});body.innerHTML=h;}
+document.getElementById('itemsBody').addEventListener('click',function(e){var el=e.target.closest('button[data-act]');if(!el)return;var act=el.getAttribute('data-act');if(act==='wrong')returnWrongCode(el.getAttribute('data-code')||'');else if(act==='dup')resolveDuplicate(el.getAttribute('data-id')||'0');else if(act==='nf')resolveNotFound(el.getAttribute('data-id')||'0');});
+async function unlockRegion(rg){if(!curBatchId)return;if(!confirm('确认解锁「'+rg+'」区域？'))return;var fd=new FormData();fd.append('action','box_unlock');fd.append('batch_name',curBatchId);fd.append('region',rg);var d=await fetch('/run',{method:'POST',body:fd}).then(function(r){return r.json();});alert(d.status==='ok'?'✅ 已解锁':('❌ '+(d.message||'')));loadData();}
+async function resolveRegionAbnormal(rg){if(!curBatchId)return;if(!confirm('确认「'+rg+'」区域的异常都已处理完毕？'))return;var fd=new FormData();fd.append('action','box_resolve_abnormal');fd.append('batch_name',curBatchId);fd.append('region',rg);var d=await fetch('/run',{method:'POST',body:fd}).then(function(r){return r.json();});alert(d.status==='ok'?('✅ '+(d.message||'已处理')):('❌ '+(d.message||'')));loadData();}
+async function returnWrongCode(code){if(!curBatchId)return;var fd=new FormData();fd.append('action','box_returned');fd.append('batch_name',curBatchId);fd.append('region',curRegion||'');fd.append('code',code);var d=await fetch('/run',{method:'POST',body:fd}).then(function(r){return r.json();});alert(d.status==='ok'?'✅ 已放回正确区域':('❌ '+(d.message||'')));refreshAfterAction();}
+async function resolveDuplicate(record_id){if(!curBatchId)return;var fd=new FormData();fd.append('action','box_resolve_duplicate');fd.append('batch_name',curBatchId);fd.append('region',curRegion||'');fd.append('record_id',record_id);var d=await fetch('/run',{method:'POST',body:fd}).then(function(r){return r.json();});alert(d.status==='ok'?'✅ 已确认重复，继续扫码':('❌ '+(d.message||'')));refreshAfterAction();}
+async function resolveNotFound(record_id){if(!curBatchId)return;var fd=new FormData();fd.append('action','box_resolve_not_found');fd.append('batch_name',curBatchId);fd.append('region',curRegion||'');fd.append('record_id',record_id);var d=await fetch('/run',{method:'POST',body:fd}).then(function(r){return r.json();});alert(d.status==='ok'?'✅ 已标记处理':('❌ '+(d.message||'')));refreshAfterAction();}
+function refreshAfterAction(){loadData();if(curRegion&&curView){openItems(curRegion,curView,curResolvedOnly);}}
+document.getElementById('itemsPanel').addEventListener('click',function(e){if(e.target===this)closeItems();});
+if(localStorage.getItem('box_manager_pwd')==='1'){document.getElementById('auth').style.display='none';loadBatches();}else{document.getElementById('auth').style.display='flex';}
 </script></body></html>'''
 
 WORKSHOP_PAGE = '''<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>✅车间加工(手机端)</title><style>
@@ -2695,6 +2816,7 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._html('<meta charset="utf-8"><h2>预览不存在或已过期</h2>')
         if p == '/box_scan': return self._html(BOX_SCAN_PAGE)
         if p == '/box_admin': return self._html(BOX_ADMIN_PAGE)
+        if p == '/box_manager': return self._html(BOX_MANAGER_PAGE.replace('__MANAGER_PWD__', MANAGER_PASSWORD))
         if p == '/box_scan_qr':
             ip = get_ip()
             if not ip or ip == 'localhost':
@@ -2715,6 +2837,61 @@ class H(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
+        if p == '/box_manager_qr':
+            ip = get_ip()
+            if not ip or ip == 'localhost':
+                ip = self.headers.get('Host', '').split(':')[0] or '127.0.0.1'
+            url = 'http://' + ip + ':' + str(PORT) + '/box_manager'
+            try:
+                qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+                qr.add_data(url); qr.make(fit=True)
+                img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
+                buf = io.BytesIO(); img.save(buf, format='PNG'); data = buf.getvalue()
+            except Exception as e:
+                return self._json({'status':'error','message':str(e)})
+            self.send_response(200)
+            self.send_header('Content-Type','image/png')
+            self.send_header('Content-Length',str(len(data)))
+            self.send_header('Cache-Control','no-cache, no-store, must-revalidate')
+            self.send_header('Access-Control-Allow-Origin','*')
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if p == '/box_manager_qr_cf':
+            url = CF_DOMAIN.rstrip('/') + '/box_manager'
+            try:
+                qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+                qr.add_data(url); qr.make(fit=True)
+                img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
+                buf = io.BytesIO(); img.save(buf, format='PNG'); data = buf.getvalue()
+            except Exception as e:
+                return self._json({'status':'error','message':str(e)})
+            self.send_response(200)
+            self.send_header('Content-Type','image/png')
+            self.send_header('Content-Length',str(len(data)))
+            self.send_header('Cache-Control','no-cache, no-store, must-revalidate')
+            self.send_header('Access-Control-Allow-Origin','*')
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if p == '/box_scan_qr_cf':
+            url = CF_DOMAIN.rstrip('/') + '/box_scan'
+            try:
+                qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=8, border=2)
+                qr.add_data(url); qr.make(fit=True)
+                img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
+                buf = io.BytesIO(); img.save(buf, format='PNG'); data = buf.getvalue()
+            except Exception as e:
+                return self._json({'status':'error','message':str(e)})
+            self.send_response(200)
+            self.send_header('Content-Type','image/png')
+            self.send_header('Content-Length',str(len(data)))
+            self.send_header('Cache-Control','no-cache, no-store, must-revalidate')
+            self.send_header('Access-Control-Allow-Origin','*')
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if p == '/get_cf_domain': return self._json({'domain': CF_DOMAIN})
         if p == '/get_ip': return self._json({'ip':get_ip()})
         if p.startswith('/scan_info'):
 
@@ -3312,7 +3489,7 @@ class H(http.server.BaseHTTPRequestHandler):
             # Debug logging
             print(f'[DEBUG] POST action=\"{action}\" fname=\"{fname}\" fdata_size={len(fdata) if fdata else 0} parts={len(parts)}', flush=True)
             # Non-upload actions don't need a file
-            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal', 'box_resolve_duplicate', 'lbl30_text', 'lbl30_free', 'lbl100_text', 'lbl100_free'):
+            if action in ('start_job', 'complete_job', 'set_priority', 'cancel_job', 'delete_jobs', 'pause_job', 'resume_job', 'set_abnormal_status', 'save_efficiency', 'delete_efficiency', 'delete_job_efficiency', 'box_ship', 'box_delete', 'box_reset', 'box_unlock', 'box_returned', 'box_resolve_abnormal', 'box_resolve_duplicate', 'box_resolve_not_found', 'lbl30_text', 'lbl30_free', 'lbl100_text', 'lbl100_free'):
                 pass  # handle below
             elif not fdata or not fname:
                 return self._json({'status':'error','message':'No file'})
@@ -3534,6 +3711,22 @@ class H(http.server.BaseHTTPRequestHandler):
                 code = row[0] if row else ''
                 log_box_event(bid, region, 'duplicate_resolved', code, '\u5de5\u4eba', '\u5df2\u786e\u8ba4\u91cd\u590d\u5e76\u7ee7\u7eed\u626b\u7801')
                 return self._json({'status':'ok','message':'\u5df2\u786e\u8ba4\u91cd\u590d\uff0c\u7ee7\u7eed\u626b\u7801'})
+            if action == 'box_resolve_not_found':
+                bid = int(batch_name) if batch_name.isdigit() else 0
+                record_id = self._get_post('record_id', '0')
+                try: record_id = int(record_id)
+                except: record_id = 0
+                region = self._get_post('region', '').strip()
+                if not bid or not record_id:
+                    return self._json({'status':'error','message':'参数错误'})
+                conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+                c.execute("UPDATE box_scans SET resolved=1, resolved_at=? WHERE id=? AND batch_id=? AND result='not_found'", (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), record_id, bid))
+                conn.commit()
+                c.execute('SELECT code FROM box_scans WHERE id=?', (record_id,))
+                row = c.fetchone(); conn.close()
+                code = row[0] if row else ''
+                log_box_event(bid, region, 'not_found_resolved', code, '管理员', '清单无此码已处理')
+                return self._json({'status':'ok','message':'已标记处理'})
             if action == 'save_efficiency':
                 sku = self._get_post('sku', '').strip().upper()
                 rate = self._get_post('rate', '')
